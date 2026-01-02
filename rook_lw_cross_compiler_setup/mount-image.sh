@@ -12,7 +12,7 @@ image_file_dir="../var/rpi_images"
 image_file="$(ls -1 "$image_file_dir" | grep '\.img$' | grep 'raspios' | head -n 1)"
 
 # Path to losetup command
-losetup_path="$(which losetup || echo "/usr/sbin/losetup")"
+losetup_path="/usr/sbin/losetup"
 
 if [ -z "$image_file" ]; then
     echo "Error: No Raspberry Pi OS image file found in $image_file_dir" >&2
@@ -20,11 +20,11 @@ if [ -z "$image_file" ]; then
 fi
 
 # Set up loop device
-loop_device="$($losetup_path -j "$image_file_dir/$image_file" | cut -d: -f1)"
+loop_device="$($losetup_path --associated "$image_file_dir/$image_file" | cut -d: -f1)"
 if [ -z "$loop_device" ]; then
-    sudo $losetup_path -fP "$image_file_dir/$image_file"
+    sudo $losetup_path --read-only --find --partscan "$image_file_dir/$image_file"
 fi
-loop_device="$($losetup_path -j "$image_file_dir/$image_file" | cut -d: -f1)"
+loop_device="$($losetup_path --associated "$image_file_dir/$image_file" | cut -d: -f1)"
 if [ -z "$loop_device" ]; then
     echo "Error: failed to set up loop device for $image_file_dir/$image_file" >&2
     exit 1
@@ -44,5 +44,5 @@ if ! mountpoint -q "$mount_point"; then
     fi
 
     echo "Mounting $loop_mount_device to $mount_point..."
-    sudo mount "$loop_mount_device" "$mount_point"
+    sudo mount -o ro "$loop_mount_device" "$mount_point"
 fi

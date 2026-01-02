@@ -2,15 +2,18 @@
 
 # Installs development packages inside the mounted Raspberry Pi OS root filesystem.
 
-
-# Mount point for the root filesystem
-mount_point="/mnt/rpi-rootfs"
+sysroots_dir="../var/sysroots"
+sysroot="$(ls -1td ../var/sysroots/*/ | head -1)"
+if [ -z "$sysroot" ]; then
+    echo "Error: No sysroot found in ../var/sysroots" >&2
+    exit 1
+fi
 
 cleanup() {
     echo "Cleaning up mounted filesystems..."
-    sudo umount -l "$mount_point/proc" 2>/dev/null || true
-    sudo umount -l "$mount_point/sys" 2>/dev/null || true
-    sudo umount -l "$mount_point/dev" 2>/dev/null || true
+    sudo umount -l "$sysroot/proc" 2>/dev/null || true
+    sudo umount -l "$sysroot/sys" 2>/dev/null || true
+    sudo umount -l "$sysroot/dev" 2>/dev/null || true
 }
 
 exit_err() {
@@ -19,27 +22,24 @@ exit_err() {
     exit 1
 }
 
-# Ensure qemu-aarch64-static is available on the host
-if [ ! -f "/usr/bin/qemu-aarch64-static" ]; then
-    echo "Installing qemu-user-static and binfmt-support on host..."
-    sudo apt install -y qemu-user-static binfmt-support
-fi
+echo "Preparing to install development packages in sysroot: $sysroot"
 
 if [ ! -f "/usr/bin/qemu-aarch64-static" ]; then
     echo "Error: qemu-aarch64-static is not installed on the host." >&2
     exit 1
 fi
 
-echo "Copying qemu-aarch64-static into $mount_point"
-sudo cp /usr/bin/qemu-aarch64-static "$mount_point/usr/bin/" || exit_err
+echo "Copying qemu-aarch64-static into $sysroot"
+sudo cp /usr/bin/qemu-aarch64-static "$sysroot/usr/bin/" || exit_err
 
-echo "Mounting /dev, /sys, /proc into $mount_point"
-sudo mount --bind /dev "$mount_point/dev" || exit_err
-sudo mount --bind /sys "$mount_point/sys" || exit_err
-sudo mount --bind /proc "$mount_point/proc" || exit_err
+echo "Mounting /dev, /sys, /proc into $sysroot"
+sudo mkdir -p "$sysroot/dev" "$sysroot/sys" "$sysroot/proc" "$sysroot/tmp" || exit_err
+sudo mount --bind /dev "$sysroot/dev" || exit_err
+sudo mount --bind /sys "$sysroot/sys" || exit_err
+sudo mount --bind /proc "$sysroot/proc" || exit_err
 
 echo "Entering chroot to install packages"
-sudo chroot "$mount_point" /bin/bash -c '
+sudo chroot "$sysroot" /bin/bash -c '
 set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
 apt update

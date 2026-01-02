@@ -24,6 +24,18 @@ mkdir -p "$sysroots_dir/$base_name"
 
 if ! sudo rsync -a \
   --delete \
+  --exclude=/dev \
+  --exclude=/dev/* \
+  --exclude=/proc \
+  --exclude=/proc/* \
+  --exclude=/sys \
+  --exclude=/sys/* \
+  --exclude=/run \
+  --exclude=/run/* \
+  --exclude=/tmp \
+  --exclude=/tmp/* \
+  --exclude=/var/run \
+  --exclude=/var/run/* \
   "$mount_point/" \
   "$sysroots_dir/$base_name/"; then
     echo "Error: failed to copy sysroot from $mount_point to $sysroots_dir/$base_name" >&2
@@ -31,19 +43,3 @@ if ! sudo rsync -a \
 fi
 
 echo "Sysroot copied to $sysroots_dir/$base_name"
-
-pushd "$sysroots_dir" > /dev/null || exit 1
-
-echo "Creating sysroot archive: ${base_name}-sysroot.tar.zst"
-sudo tar --numeric-owner --zstd -cpf \
-  "${base_name}-sysroot.tar.zst" \
-  "$base_name"
-
-if [ $? -ne 0 ]; then
-    echo "Error: failed to create sysroot archive ${base_name}-sysroot.tar.zst" >&2
-    popd > /dev/null
-    exit 1
-fi
-popd > /dev/null
-
-echo "Sysroot archive created at $sysroots_dir/${base_name}-sysroot.tar.zst"

@@ -36,11 +36,4 @@ if [ ! -f "$image_file_dir/$image_file" ]; then
         echo "Error: decompression of $image_file_compressed failed." >&2
         exit 1
     fi
-    # Record the size (bytes) of the decompressed image into a .size file
-    image_fullpath="$image_file_dir/$image_file"
-    if [ -f "$image_fullpath" ]; then
-        size_bytes=$(stat -c%s "$image_fullpath")
-        echo "$size_bytes" > "$image_fullpath.size"
-        echo "Recorded image size: $size_bytes bytes -> $image_fullpath.size"
-    fi
 fi

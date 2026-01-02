@@ -27,11 +27,14 @@ fi
 # Download the image
 $script_dir/download-image.sh || exit_err
 
-# Resize the image
-$script_dir/image-resize.sh || exit_err
-
 # Mount the image
 $script_dir/mount-image.sh || exit_err
+
+# Make a sysroot copy
+$script_dir/create-sysroot-copy.sh || exit_err
+
+# Cleanup mounts
+$script_dir/cleanup-img-mounts.sh || exit_err
 
 # Fix up links
 $script_dir/fix-symlinks.sh || exit_err
@@ -42,11 +45,10 @@ $script_dir/install-dev-packages.sh || exit_err
 # Fix up links for anything installed
 $script_dir/fix-symlinks.sh || exit_err
 
-# Create sysroot copy
-$script_dir/create-sysroot-copy.sh || exit_err
-
 # Check that the setup is correct
 $script_dir/check-setup.sh || exit_err
 
-# Cleanup
-$script_dir/cleanup-img-mounts.sh || exit_err
+# Create sysroot archive
+$script_dir/create-sysroot-archive.sh || exit_err
+
+echo "Setup completed successfully."
