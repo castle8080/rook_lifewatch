@@ -19,8 +19,14 @@ pub struct Frame {
 pub enum FrameError {
     #[error("capture error: {0}")]
     Capture(String),
+    #[error("no frame source implementation available")]
+    NoImplementationAvailable,
+    #[error("failed to initialize frame source: {0}")]
+    InitializationFailed(String),
 }
 
+pub type FrameResult<T> = Result<T, FrameError>;
+
 pub trait FrameSource: Send {
-    fn next_frame(&mut self) -> Result<Frame, FrameError>;
+    fn next_frame(&mut self) -> FrameResult<Frame>;
 }
