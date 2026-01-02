@@ -1,1 +1,8 @@
-/target
+
+# Can be used to store temporary notes, data, etc...
+/var
+
+# Any common temporary file patterns
+.~*
+*~
+*.tmp
