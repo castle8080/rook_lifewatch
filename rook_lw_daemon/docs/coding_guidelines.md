@@ -6,14 +6,14 @@ Purpose: concise, practical rules for writing and reviewing code in this reposit
 
 - **Error types:** use `thiserror` for typed errors in libraries and `anyhow` for quick propagation in binaries. Convert lower-level errors into domain-specific error variants at crate boundaries.
 
-- **No async runtimes:** do not add or rely on `tokio` (or other async runtimes) in core or platform code. The project uses OS threads + channels for hardware interrupt handling, capture, and processing. If an async-only network component is needed later, add it behind a clear adapter boundary so the core remains synchronous.
+- **No async runtimes:** do not add or rely on `tokio` (or other async runtimes) in core or implementation code. The project uses OS threads + channels for hardware interrupt handling, capture, and processing. If an async-only network component is needed later, add it behind a clear adapter boundary so the core remains synchronous.
 
 - **Channels for communication:** prefer `crossbeam_channel` for internal event/worker communication (or `std::sync::mpsc` if simplicity is required). Standard patterns:
   - One dedicated producer thread per hardware source (GPIO, capture). Producer sends messages to channels.
   - One or more worker threads consume frames/events from channels for processing.
   - Keep channel types explicit (e.g., `Frame`, `MotionEvent`) and avoid `Box<dyn Any>` messages.
 
-- **Platform separation:** keep Raspberry Pi–specific code in `platform::rpi` (or a separate crate) and desktop/dev code in `platform::desktop`. Core traits and pipeline code must not depend on platform crates.
+- **Implementation separation:** keep libcamera-specific code in `impl::libcamera` (or a separate crate) and opencv/dev code in `impl::opencv`. Core traits and pipeline code must not depend on implementation crates.
 
 - **FFI and unsafe:** when writing FFI (C/C++) wrappers (e.g., libcamera capture), minimize `unsafe` to small wrapper modules. Clearly document ownership, lifetimes, and who is responsible for freeing memory. Prefer copying into safe Rust containers until zero-copy is proven necessary.
 

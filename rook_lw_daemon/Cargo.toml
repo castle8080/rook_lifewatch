@@ -3,6 +3,11 @@ name = "rook_life_watch"
 version = "0.1.0"
 edition = "2024"
 
+[features]
+default = ["libcamera", "opencv"]
+libcamera = []
+opencv = []
+
 [dependencies]
 anyhow = "1"
 image = "0.25"

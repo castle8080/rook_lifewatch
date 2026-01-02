@@ -25,8 +25,8 @@ pub enum RookLWError {
     #[error("camera error: {0}")]
     Camera(String),
 
-    #[error("platform error: {0}")]
-    Platform(String),
+    #[error("implementation error: {0}")]
+    Implementation(String),
 
     #[error("other error: {0}")]
     Other(String),
