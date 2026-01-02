@@ -6,9 +6,15 @@ edition = "2024"
 [features]
 default = []
 libcamera = []
-opencv = []
+opencv = ["dep:opencv"]
 
 [dependencies]
 anyhow = "1"
 image = "0.25"
 thiserror = "2"
+
+[dependencies.opencv]
+version = "0.95"
+default-features = false
+features = ["videoio", "imgproc"]
+optional = true
