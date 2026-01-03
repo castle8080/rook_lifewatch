@@ -9,11 +9,11 @@ pub struct LibCameraFrameSource {
 impl LibCameraFrameSource {
     /// Try to create a new libcamera frame source
     /// This will check if libcamera is available and accessible at runtime
-    pub fn try_new() -> Result<Self, FrameError> {
+    pub fn try_new(camera: Option<&str>) -> Result<Self, FrameError> {
         // TODO: Actual runtime check for libcamera availability
         // For now, we'll simulate a check
         Ok(Self {
-            camera_id: "libcamera-0".to_string(),
+            camera_id: camera.unwrap_or("libcamera-0").to_string(),
         })
     }
 }

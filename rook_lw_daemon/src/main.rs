@@ -8,8 +8,8 @@ fn main() -> RookLWResult<()> {
     println!("Available frame sources: {:?}", FrameSourceFactory::available_sources());
 
     // Create frame source using factory with default preference
-    let mut frame_source = FrameSourceFactory::create()
-        .expect("Failed to create frame source");
+    let camera = "rtsp://192.168.1.21:8554/";
+    let mut frame_source = FrameSourceFactory::create(Some(camera))?;
 
     // Alternative: specify preference order
     // let mut frame_source = FrameSourceFactory::create_with_preference(

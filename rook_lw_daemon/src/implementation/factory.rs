@@ -5,20 +5,23 @@ pub struct FrameSourceFactory;
 impl FrameSourceFactory {
 
     /// Create a frame source using the default preference order
-    pub fn create() -> FrameResult<Box<dyn FrameSource>> {
-        Self::available_sources().first()
-            .ok_or(FrameError::NoImplementationAvailable)
-            .and_then(|source_name| Self::try_create(source_name))
+    pub fn create(camera: Option<&str>) -> FrameResult<Box<dyn FrameSource>> {
+        let sources = Self::available_sources();
+        let source_name = sources
+            .first()
+            .ok_or(FrameError::NoImplementationAvailable)?;
+
+        Self::try_create(source_name, camera)
     }
 
     /// Try to create a specific frame source by name
-    fn try_create(source_name: &str) -> FrameResult<Box<dyn FrameSource>> {
+    fn try_create(source_name: &str, camera: Option<&str>) -> FrameResult<Box<dyn FrameSource>> {
         match source_name {
             "libcamera" => {
-                try_create_libcamera_source()
+                try_create_libcamera_source(camera)
             }
             "opencv" => {
-                try_create_opencv_source()
+                try_create_opencv_source(camera)
             }
             _ => Err(FrameError::InitializationFailed(format!(
                 "unknown or disabled source: {}",
@@ -38,12 +41,11 @@ impl FrameSourceFactory {
     }
 }
 
-
-fn try_create_libcamera_source() -> FrameResult<Box<dyn FrameSource>> {
+fn try_create_libcamera_source(camera: Option<&str>) -> FrameResult<Box<dyn FrameSource>> {
     #[cfg(feature = "libcamera")]
     {
         use crate::implementation::libcamera::LibCameraFrameSource;
-        return LibCameraFrameSource::try_new()
+        return LibCameraFrameSource::try_new(camera)
             .map(|src| Box::new(src) as Box<dyn FrameSource>)
             .map_err(|e| FrameError::InitializationFailed(e.to_string()));
     }
@@ -55,11 +57,11 @@ fn try_create_libcamera_source() -> FrameResult<Box<dyn FrameSource>> {
     }
 }
 
-fn try_create_opencv_source() -> FrameResult<Box<dyn FrameSource>> {
+fn try_create_opencv_source(camera: Option<&str>) -> FrameResult<Box<dyn FrameSource>> {
     #[cfg(feature = "opencv")]
     {
         use crate::implementation::opencv::OpencvFrameSource;
-        return OpencvFrameSource::try_new()
+        return OpencvFrameSource::try_new(camera)
             .map(|src| Box::new(src) as Box<dyn FrameSource>)
             .map_err(|e| FrameError::InitializationFailed(e.to_string()));
     }
