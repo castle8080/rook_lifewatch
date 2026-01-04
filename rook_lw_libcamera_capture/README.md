@@ -39,6 +39,28 @@ cmake --preset default
 cmake --build --preset default
 ```
 
+## Install (to a custom directory)
+
+This project defines CMake `install()` rules for the library and headers.
+
+To install into `../dist` (relative to the project root):
+
+```bash
+cmake --preset default
+cmake --build --preset default
+cmake --install build/default --prefix "$PWD/../dist"
+```
+
+Notes:
+- You can use any absolute path for `--prefix`.
+- If you prefer to bake the prefix into the build directory’s cache:
+
+```bash
+cmake --preset default -DCMAKE_INSTALL_PREFIX="$PWD/../dist"
+cmake --build --preset default
+cmake --install build/default
+```
+
 ## Build (cross for Raspberry Pi arm64)
 
 ```bash
@@ -48,6 +70,12 @@ cmake --build --preset default
 
 cmake --preset rpi-arm64
 cmake --build --preset rpi-arm64
+```
+
+To install the cross build artifacts into `../dist` as well:
+
+```bash
+cmake --install build/rpi-arm64 --prefix "$PWD/../dist"
 ```
 
 ## Run on the Pi

@@ -3,12 +3,14 @@
 #include <cerrno>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <mutex>
 #include <condition_variable>
 #include <chrono>
+#include <new>
 #include <string>
 #include <vector>
 
@@ -24,6 +26,100 @@
 
 namespace {
 
+class CameraCapturer {
+public:
+	CameraCapturer()
+	{
+		int ret = cm_.start();
+		if (ret != 0) {
+			started_ = false;
+			return;
+		}
+		started_ = true;
+	}
+
+	~CameraCapturer()
+	{
+		shutdown();
+	}
+
+	bool ok() const { return started_; }
+
+	unsigned camera_count() const
+	{
+		return static_cast<unsigned>(cm_.cameras().size());
+	}
+
+	const char *camera_name(unsigned index) const
+	{
+		const auto &cams = cm_.cameras();
+		if (index >= cams.size())
+			return nullptr;
+		// Camera::id() is a std::string owned by libcamera; pointer stays valid
+		// as long as the Camera object is alive (which is tied to CameraManager).
+		return cams[index]->id().c_str();
+	}
+
+private:
+	void shutdown()
+	{
+		if (!started_)
+			return;
+		cm_.stop();
+		started_ = false;
+	}
+
+	libcamera::CameraManager cm_;
+	bool started_ = false;
+};
+
+} // namespace
+
+struct rook_lw_camera_capturer {
+	CameraCapturer impl;
+};
+
+extern "C" rook_lw_camera_capturer_t *rook_lw_camera_capturer_create(void)
+{
+	try {
+		auto *p = new (std::nothrow) rook_lw_camera_capturer();
+		if (!p)
+			return nullptr;
+		if (!p->impl.ok()) {
+			delete p;
+			return nullptr;
+		}
+		return p;
+	} catch (...) {
+		return nullptr;
+	}
+}
+
+extern "C" void rook_lw_camera_capturer_destroy(rook_lw_camera_capturer_t *capturer)
+{
+	delete capturer;
+}
+
+extern "C" unsigned rook_lw_camera_capturer_get_camera_count(const rook_lw_camera_capturer_t *capturer)
+{
+	if (!capturer)
+		return 0;
+	return capturer->impl.camera_count();
+}
+
+extern "C" const char *rook_lw_camera_capturer_get_camera_name(const rook_lw_camera_capturer_t *capturer,
+                                                                unsigned index)
+{
+	if (!capturer)
+		return nullptr;
+	return capturer->impl.camera_name(index);
+}
+
+namespace {
+
+
+
+	
 int ensure_dir(const char *path)
 {
 	try {
@@ -154,6 +250,62 @@ struct CaptureContext {
 };
 
 } // namespace
+
+extern "C" int rook_lw_list_cameras(char ***out_ids, unsigned *out_count)
+{
+	if (!out_ids || !out_count)
+		return -EINVAL;
+	*out_ids = nullptr;
+	*out_count = 0;
+
+	using namespace libcamera;
+	CameraManager cm;
+	if (int ret = cm.start(); ret != 0)
+		return -EIO;
+
+	std::vector<std::string> ids;
+	ids.reserve(cm.cameras().size());
+	for (const std::shared_ptr<Camera> &cam : cm.cameras())
+		ids.push_back(cam->id());
+
+	cm.stop();
+
+	if (ids.empty()) {
+		// No cameras available is not an error for enumeration.
+		return 0;
+	}
+
+	char **list = static_cast<char **>(std::malloc(sizeof(char *) * ids.size()));
+	if (!list)
+		return -ENOMEM;
+	std::memset(list, 0, sizeof(char *) * ids.size());
+
+	for (size_t i = 0; i < ids.size(); ++i) {
+		const std::string &s = ids[i];
+		char *p = static_cast<char *>(std::malloc(s.size() + 1));
+		if (!p) {
+			for (size_t j = 0; j < ids.size(); ++j)
+				std::free(list[j]);
+			std::free(list);
+			return -ENOMEM;
+		}
+		std::memcpy(p, s.c_str(), s.size() + 1);
+		list[i] = p;
+	}
+
+	*out_ids = list;
+	*out_count = static_cast<unsigned>(ids.size());
+	return 0;
+}
+
+extern "C" void rook_lw_free_camera_id_list(char **ids, unsigned count)
+{
+	if (!ids)
+		return;
+	for (unsigned i = 0; i < count; ++i)
+		std::free(ids[i]);
+	std::free(ids);
+}
 
 int rook_lw_capture_10_frames(const char *output_dir)
 {
