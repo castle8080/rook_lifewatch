@@ -1,0 +1,39 @@
+build*/
+var/
+
+# Temp files
+*.tmp
+*.swp
+*~
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+install_manifest.txt
+CTestTestfile.cmake
+Testing/
+CMakeUserPresets.json
+
+# Ninja
+.ninja_deps
+.ninja_log
+
+# Compilation artifacts
+*.o
+*.obj
+*.a
+*.so
+*.dylib
+*.dll
+*.exe
+*.pdb
+*.dSYM/
+
+# Tooling
+compile_commands.json
+.cache/
+
+# Editors/IDEs
+.vscode/
+.idea/

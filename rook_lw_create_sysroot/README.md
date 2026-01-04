@@ -1,6 +1,18 @@
 # Sysroot Cross Compiler Setup
 
-These scripts download and create a raspberry pi sysroot from an OS image.
+These scripts download and create a raspberry pi sysroot from an OS image or a deployed raspberry pi.
+
+## From Raspberry PI
+
+1. It will rsync from the raspberry pi.
+2. Fix symlinks
+3. Tars up the sysroot
+
+To run the process:
+
+```./setup-from-pi.sh```
+
+## From OS Image
 
 1. It will download the os image.
 2. Mount that image
@@ -14,7 +26,7 @@ Download images will be under var/rpi_images. These can be removed once the sysr
 
 To run the process:
 
-```./setup.sh```
+```./setup-from-os-image.sh```
 
 
 **Dependencies**
