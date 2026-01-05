@@ -9,7 +9,6 @@ impl FrameProcessor for SimpleFrameDiffer {
     fn process_frame(&mut self, frame: Frame) -> Result<Vec<MotionEvent>, ProcessingError> {
         let event = MotionEvent {
             timestamp: SystemTime::now(),
-            source_id: frame.metadata.source_id,
             kind: MotionEventKind::FrameDifference,
             confidence: 0.0,
         };

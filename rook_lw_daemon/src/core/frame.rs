@@ -6,7 +6,6 @@ pub type RgbImage = ImageBuffer<Rgb<u8>, Vec<u8>>;
 #[derive(Debug, Clone)]
 pub struct FrameMetadata {
     pub timestamp: SystemTime,
-    pub source_id: String,
 }
 
 #[derive(Debug, Clone)]
@@ -27,6 +26,10 @@ pub enum FrameError {
 
 pub type FrameResult<T> = Result<T, FrameError>;
 
-pub trait FrameSource: Send {
+pub trait FrameSource {
     fn next_frame(&mut self) -> FrameResult<Frame>;
+
+    fn list_sources(&mut self) -> FrameResult<Vec<String>>;
+
+    fn set_source(&mut self, source: &str) -> FrameResult<()>;
 }

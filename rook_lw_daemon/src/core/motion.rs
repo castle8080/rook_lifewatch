@@ -4,7 +4,6 @@ use std::sync::mpsc::Receiver;
 #[derive(Debug, Clone)]
 pub struct MotionEvent {
     pub timestamp: SystemTime,
-    pub source_id: String,
     pub kind: MotionEventKind,
     pub confidence: f32,
 }

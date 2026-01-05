@@ -8,8 +8,22 @@ fn main() -> RookLWResult<()> {
     println!("Available frame sources: {:?}", FrameSourceFactory::available_sources());
 
     // Create frame source using factory with default preference
-    let camera = "rtsp://192.168.1.21:8554/";
-    let mut frame_source = FrameSourceFactory::create(Some(camera))?;
+    //let camera = "rtsp://192.168.1.21:8554/";
+    let mut frame_source = FrameSourceFactory::create()?;
+
+    let sources = frame_source.list_sources()?;
+
+    for (i, source) in sources.iter().enumerate() {
+        println!("Source {}: {}", i, source);
+    }
+
+    if sources.is_empty() {
+        return Err(rook_life_watch::error::RookLWError::Camera("No available frame sources found".to_owned()));
+    }
+    else {
+        println!("Using source: {}", sources[0]);
+        frame_source.set_source(&sources[0])?;
+    }
 
     // Alternative: specify preference order
     // let mut frame_source = FrameSourceFactory::create_with_preference(

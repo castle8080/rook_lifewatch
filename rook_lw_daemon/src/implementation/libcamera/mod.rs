@@ -8,13 +8,14 @@ mod ffi;
 
 /// Safe RAII wrapper around `rook_lw_camera_capturer_t*`.
 ///
-/// - Construct with `CameraCapturer::new()`
+/// - Construct with `LibCameraFrameSource::new()`
 /// - Automatically destroyed on `Drop`
-pub struct CameraCapturer {
+pub struct LibCameraFrameSource {
     inner: NonNull<ffi::rook_lw_camera_capturer_t>,
 }
 
-impl CameraCapturer {
+impl LibCameraFrameSource {
+
     pub fn new() -> FrameResult<Self> {
         let ptr = unsafe { ffi::rook_lw_camera_capturer_create() };
         let inner = NonNull::new(ptr).ok_or_else(|| {
@@ -22,12 +23,13 @@ impl CameraCapturer {
                 "rook_lw_camera_capturer_create returned null (failed to initialize)".to_string(),
             )
         })?;
-
         Ok(Self { inner })
     }
 
     pub fn camera_count(&self) -> u32 {
-        unsafe { ffi::rook_lw_camera_capturer_get_camera_count(self.inner.as_ptr()) }
+        unsafe {
+            ffi::rook_lw_camera_capturer_get_camera_count(self.inner.as_ptr())
+        }
     }
 
     /// Returns the camera name at `index` as an owned `String`.
@@ -42,44 +44,37 @@ impl CameraCapturer {
     }
 }
 
-impl Drop for CameraCapturer {
+impl Drop for LibCameraFrameSource {
     fn drop(&mut self) {
-        unsafe { ffi::rook_lw_camera_capturer_destroy(self.inner.as_ptr()) };
-    }
-}
-
-pub struct LibCameraFrameSource {
-    camera_id: String,
-}
-
-impl LibCameraFrameSource {
-    /// Try to create a new libcamera frame source
-    /// This will check if libcamera is available and accessible at runtime
-    pub fn try_new(camera: Option<&str>) -> FrameResult<Self> {
-        // TODO: Actual runtime check for libcamera availability
-        // For now, we'll simulate a check
-
-        let capturer = CameraCapturer::new()?;
-
-        println!(
-            "LibCamera: Found {} cameras",
-            capturer.camera_count()
-        );
-
-        Ok(Self {
-            camera_id: camera.unwrap_or("libcamera-0").to_string(),
-        })
+        unsafe {
+            ffi::rook_lw_camera_capturer_destroy(self.inner.as_ptr())
+        };
     }
 }
 
 impl FrameSource for LibCameraFrameSource {
+
+    fn list_sources(&mut self) -> FrameResult<Vec<String>> {
+        let mut sources = Vec::new();
+        for i in 0..self.camera_count() {
+            if let Some(cam) = self.camera_name(i) {
+                sources.push(cam);
+            }
+        }
+        Ok(sources)
+    }
+
+    fn set_source(&mut self, source: &str) -> FrameResult<()> {
+        // For now, this is a no-op since libcamera integration is minimal.
+        Ok(())
+    }
+
     fn next_frame(&mut self) -> FrameResult<Frame> {
         let img = DynamicImage::new_rgb8(1, 1);
         Ok(Frame {
             image: img,
             metadata: FrameMetadata {
-                timestamp: SystemTime::now(),
-                source_id: self.camera_id.clone(),
+                timestamp: SystemTime::now()
             },
         })
     }
