@@ -1,0 +1,4 @@
+{
+  "rust-analyzer.cargo.features": ["libcamera", "opencv"],
+  "rust-analyzer.cargo.noDefaultFeatures": false
+}

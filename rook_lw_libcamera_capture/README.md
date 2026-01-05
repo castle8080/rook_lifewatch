@@ -80,10 +80,10 @@ cmake --install build/rpi-arm64 --prefix "$PWD/../dist"
 
 ## Run on the Pi
 
-Copy the `capture10` binary + library to the Pi (or package/install), then:
+Copy the `camera_capturer_test` binary + library to the Pi (or package/install), then:
 
 ```bash
-./capture10 /tmp/frames
+./camera_capturer_test /tmp/frames
 ```
 
 It writes 10 raw frame dumps as `frame_000.raw` ... `frame_009.raw`.

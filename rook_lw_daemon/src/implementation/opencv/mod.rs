@@ -21,6 +21,7 @@ impl OpencvFrameSource {
 
     /// Try to create a new opencv frame source with a specific camera ID
     pub fn set_source_id(&mut self, camera_id: i32) -> FrameResult<()> {
+
         let capture = VideoCapture::new(camera_id, CAP_ANY).map_err(|e| {
             FrameError::InitializationFailed(format!(
                 "Failed to open camera {}: {}",
@@ -96,12 +97,11 @@ impl FrameSource for OpencvFrameSource {
 
     fn list_sources(&mut self) -> FrameResult<Vec<String>> {
         // OpenCV does not provide a way to list available cameras.
-        // Return an empty list or a placeholder.
-        Ok(vec!["default-opencv-camera".to_string()])
+        // TODO: figure out some way to get these, perhaps via platform-specific APIs.
+        Ok(vec!["0".to_string()])
     }
 
     fn set_source(&mut self, source: &str) -> FrameResult<()> {
-
         // Try to parse as integer camera ID
         if let Ok(cam_id) = source.parse::<i32>() {
             self.set_source_id(cam_id)

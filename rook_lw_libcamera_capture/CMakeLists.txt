@@ -5,14 +5,15 @@ project(rook_lw_libcamera_capture
   LANGUAGES C CXX
 )
 
-option(ROOK_LW_LIBCAMERA_BUILD_EXAMPLE "Build capture10 example" ON)
+option(ROOK_LW_LIBCAMERA_BUILD_EXAMPLE "Build camera_capturer_test example" ON)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 add_library(rook_lw_libcamera_capture STATIC
-  src/rook_lw_libcamera_capture.cpp
+  src/rook_lw_libcamera_capture_core.cpp
+  src/rook_lw_libcamera_capture_ffi.cpp
 )
 add_library(rook::lw_libcamera_capture ALIAS rook_lw_libcamera_capture)
 
@@ -42,8 +43,8 @@ target_link_libraries(rook_lw_libcamera_capture
 )
 
 if(ROOK_LW_LIBCAMERA_BUILD_EXAMPLE)
-  add_executable(capture10 tools/capture10/main.cpp)
-  target_link_libraries(capture10 PRIVATE rook_lw_libcamera_capture)
+  add_executable(camera_capturer_test tools/camera_capturer_test/main.cpp)
+  target_link_libraries(camera_capturer_test PRIVATE rook_lw_libcamera_capture)
 endif()
 
 install(TARGETS rook_lw_libcamera_capture

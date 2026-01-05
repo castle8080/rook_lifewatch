@@ -11,21 +11,6 @@ extern "C" {
 //   negative values on failure
 int rook_lw_capture_10_frames(const char *output_dir);
 
-// Returns a newly allocated array of NUL-terminated UTF-8 camera IDs.
-//
-// Ownership:
-// - On success, *out_ids points to an array of *out_count pointers.
-// - Each entry (*out_ids)[i] is separately allocated.
-// - Call rook_lw_free_camera_id_list() to free the list.
-//
-// Returns:
-//   0 on success
-//   negative values on failure
-int rook_lw_list_cameras(char ***out_ids, unsigned *out_count);
-
-// Frees a list returned by rook_lw_list_cameras.
-void rook_lw_free_camera_id_list(char **ids, unsigned count);
-
 // Opaque camera capturer handle (implemented in C++).
 typedef struct rook_lw_camera_capturer rook_lw_camera_capturer_t;
 
