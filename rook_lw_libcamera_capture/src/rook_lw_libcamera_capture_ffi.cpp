@@ -40,27 +40,12 @@ using rook::lw_libcamera_capture::CameraCapturer;
 
 struct rook_lw_camera_capturer {
 	CameraCapturer impl;
-    std::vector<std::string> camera_names;
 };
-
-static bool rook_lw_refresh_camera_names(rook_lw_camera_capturer &capturer)
-{
-    capturer.camera_names.clear();
-
-    const unsigned count = capturer.impl.cameraCount();
-    capturer.camera_names.reserve(count);
-    for (unsigned i = 0; i < count; ++i) {
-        capturer.camera_names.push_back(capturer.impl.cameraName(i));
-    }
-
-    return true;
-}
 
 extern "C" rook_lw_camera_capturer_t *rook_lw_camera_capturer_create(void)
 {
 	try {
         auto *capturer = new rook_lw_camera_capturer();
-        rook_lw_refresh_camera_names(*capturer);
         return capturer;
 	}
     catch (const rook::lw_libcamera_capture::CameraException &) {
@@ -87,8 +72,7 @@ extern "C" unsigned rook_lw_camera_capturer_get_camera_count(const rook_lw_camer
 		return 0;
     }
     try {
-        // Expose the cached list size so returned name pointers remain stable.
-        return static_cast<unsigned>(capturer->camera_names.size());
+        return static_cast<unsigned>(capturer->impl.cameraCount());
     }
     catch (const rook::lw_libcamera_capture::CameraException &) {
         std::cerr << "CameraException caught in rook_lw_camera_capturer_get_camera_count" << std::endl;
@@ -108,10 +92,10 @@ extern "C" const char *rook_lw_camera_capturer_get_camera_name(const rook_lw_cam
     }
 
     try {
-        if (index >= capturer->camera_names.size()) {
+        if (index >= capturer->impl.cameraCount()) {
             return nullptr;
         }
-        return capturer->camera_names[index].c_str();
+        return capturer->impl.cameraName(index).c_str();
     }
     catch (const rook::lw_libcamera_capture::CameraException &) {
         std::cerr << "CameraException caught in rook_lw_camera_capturer_get_camera_name" << std::endl;
