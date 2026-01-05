@@ -1,5 +1,5 @@
 [package]
-name = "rook_life_watch"
+name = "rook_lw_daemon"
 version = "0.1.0"
 edition = "2024"
 license = "Apache-2.0"

@@ -1,7 +1,7 @@
-use rook_life_watch::core::pipeline::FrameProcessor;
-use rook_life_watch::error::RookLWResult;
-use rook_life_watch::pipeline::simple_motion::SimpleFrameDiffer;
-use rook_life_watch::implementation::factory::FrameSourceFactory;
+use rook_lw_daemon::core::pipeline::FrameProcessor;
+use rook_lw_daemon::error::RookLWResult;
+use rook_lw_daemon::pipeline::simple_motion::SimpleFrameDiffer;
+use rook_lw_daemon::implementation::factory::FrameSourceFactory;
 
 fn main() -> RookLWResult<()> {
     // Print available frame sources at compile time
@@ -18,7 +18,7 @@ fn main() -> RookLWResult<()> {
     }
 
     if sources.is_empty() {
-        return Err(rook_life_watch::error::RookLWError::Camera("No available frame sources found".to_owned()));
+        return Err(rook_lw_daemon::error::RookLWError::Camera("No available frame sources found".to_owned()));
     }
     else {
         println!("Using source: {}", sources[0]);

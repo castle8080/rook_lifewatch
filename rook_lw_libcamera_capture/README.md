@@ -39,6 +39,13 @@ cmake --preset default
 cmake --build --preset default
 ```
 
+To disable warnings-as-errors (enabled by default):
+
+```bash
+cmake --preset default -DROOK_LW_LIBCAMERA_WARNINGS_AS_ERRORS=OFF
+cmake --build --preset default
+```
+
 ## Install (to a custom directory)
 
 This project defines CMake `install()` rules for the library and headers.
@@ -69,6 +76,13 @@ cmake --install build/default
 . ./setup-cross-compiler-env.sh
 
 cmake --preset rpi-arm64
+cmake --build --preset rpi-arm64
+```
+
+To disable warnings-as-errors for the cross build:
+
+```bash
+cmake --preset rpi-arm64 -DROOK_LW_LIBCAMERA_WARNINGS_AS_ERRORS=OFF
 cmake --build --preset rpi-arm64
 ```
 
