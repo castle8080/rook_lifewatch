@@ -1,4 +1,4 @@
-use crate::core::frame::{Frame, FrameError, FrameMetadata, FrameSource};
+use crate::core::frame::{Frame, FrameError, FrameMetadata, FrameSource, FrameResult};
 use image::{DynamicImage, ImageBuffer, Rgb};
 use opencv::prelude::*;
 use opencv::videoio::{VideoCapture, VideoCaptureTrait, CAP_ANY};
@@ -11,7 +11,7 @@ pub struct OpencvFrameSource {
 
 impl OpencvFrameSource {
     /// Try to create a new opencv frame source from the default camera (camera 0)
-    pub fn try_new(camera: Option<&str>) -> Result<Self, FrameError> {
+    pub fn try_new(camera: Option<&str>) -> FrameResult<Self> {
         // Try to get from environment variable first, otherwise default to camera 0
         match camera {
             Some(cam_str) => {
@@ -30,7 +30,7 @@ impl OpencvFrameSource {
     }
 
     /// Try to create a new opencv frame source with a specific camera ID
-    pub fn try_new_with_id(camera_id: i32) -> Result<Self, FrameError> {
+    pub fn try_new_with_id(camera_id: i32) -> FrameResult<Self> {
         let capture = VideoCapture::new(camera_id, CAP_ANY).map_err(|e| {
             FrameError::InitializationFailed(format!(
                 "Failed to open camera {}: {}",
@@ -54,7 +54,7 @@ impl OpencvFrameSource {
     }
 
     /// Try to create a new opencv frame source from a URL (HTTP, RTSP, etc.)
-    pub fn try_new_from_url(url: &str) -> Result<Self, FrameError> {
+    pub fn try_new_from_url(url: &str) -> FrameResult<Self> {
         let capture = VideoCapture::from_file(url, CAP_ANY).map_err(|e| {
             FrameError::InitializationFailed(format!("Failed to open video URL {}: {}", url, e))
         })?;

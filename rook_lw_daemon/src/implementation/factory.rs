@@ -45,9 +45,7 @@ fn try_create_libcamera_source(camera: Option<&str>) -> FrameResult<Box<dyn Fram
     #[cfg(feature = "libcamera")]
     {
         use crate::implementation::libcamera::LibCameraFrameSource;
-        return LibCameraFrameSource::try_new(camera)
-            .map(|src| Box::new(src) as Box<dyn FrameSource>)
-            .map_err(|e| FrameError::InitializationFailed(e.to_string()));
+        return Ok(Box::new(LibCameraFrameSource::try_new(camera)?));
     }
     #[cfg(not(feature = "libcamera"))]
     {
@@ -61,9 +59,7 @@ fn try_create_opencv_source(camera: Option<&str>) -> FrameResult<Box<dyn FrameSo
     #[cfg(feature = "opencv")]
     {
         use crate::implementation::opencv::OpencvFrameSource;
-        return OpencvFrameSource::try_new(camera)
-            .map(|src| Box::new(src) as Box<dyn FrameSource>)
-            .map_err(|e| FrameError::InitializationFailed(e.to_string()));
+        return Ok(Box::new(OpencvFrameSource::try_new(camera)?));
     }
     #[cfg(not(feature = "opencv"))]
     {
