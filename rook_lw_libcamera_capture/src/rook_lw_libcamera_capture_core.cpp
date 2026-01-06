@@ -42,9 +42,7 @@ CameraCapturer::CameraCapturer()
 
 CameraCapturer::~CameraCapturer()
 {
-    _camera.reset();
-	_allocator.reset();
-	_config.reset();
+    reset_camera();
     _camera_manager.stop();
 }
 
