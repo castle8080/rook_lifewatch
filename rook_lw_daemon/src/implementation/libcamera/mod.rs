@@ -42,6 +42,16 @@ impl LibCameraFrameSource {
         }
         Some(unsafe { CStr::from_ptr(ptr) }.to_string_lossy().into_owned())
     }
+
+    pub fn set_camera_source(&mut self, _source: &str) -> FrameResult<()> {
+        let result = unsafe {
+            ffi::rook_lw_camera_capturer_set_camera_source(self.inner.as_ptr(), std::ffi::CString::new(_source).unwrap().as_ptr())
+        };
+        if result != 0 {
+            return Err(FrameError::InitializationFailed("Failed to set camera source".to_string()));
+        }
+        Ok(())
+    }
 }
 
 impl Drop for LibCameraFrameSource {
@@ -55,6 +65,7 @@ impl Drop for LibCameraFrameSource {
 impl FrameSource for LibCameraFrameSource {
 
     fn list_sources(&mut self) -> FrameResult<Vec<String>> {
+        println!("Listing libcamera sources...");
         let mut sources = Vec::new();
         for i in 0..self.camera_count() {
             if let Some(cam) = self.camera_name(i) {
@@ -65,8 +76,7 @@ impl FrameSource for LibCameraFrameSource {
     }
 
     fn set_source(&mut self, source: &str) -> FrameResult<()> {
-        // For now, this is a no-op since libcamera integration is minimal.
-        Ok(())
+        self.set_camera_source(source)
     }
 
     fn next_frame(&mut self) -> FrameResult<Frame> {

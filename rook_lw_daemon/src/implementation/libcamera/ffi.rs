@@ -24,4 +24,9 @@ unsafe extern "C" {
         capturer: *const rook_lw_camera_capturer_t,
         index: u32,
     ) -> *const c_char;
+
+    pub unsafe fn rook_lw_camera_capturer_set_camera_source(
+        capturer: *mut rook_lw_camera_capturer_t,
+        source: *const c_char,
+    ) -> i32;
 }

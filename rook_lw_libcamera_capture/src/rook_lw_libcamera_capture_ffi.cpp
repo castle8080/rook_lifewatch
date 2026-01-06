@@ -60,7 +60,7 @@ extern "C" rook_lw_camera_capturer_t *rook_lw_camera_capturer_create(void)
 
 extern "C" void rook_lw_camera_capturer_destroy(rook_lw_camera_capturer_t *capturer)
 {
-	if (capturer == nullptr) {
+	if (!capturer) {
 		return;
 	}
 	delete capturer;
@@ -68,11 +68,11 @@ extern "C" void rook_lw_camera_capturer_destroy(rook_lw_camera_capturer_t *captu
 
 extern "C" unsigned rook_lw_camera_capturer_get_camera_count(const rook_lw_camera_capturer_t *capturer)
 {
-	if (capturer == nullptr) {
+	if (!capturer) {
 		return 0;
     }
     try {
-        return static_cast<unsigned>(capturer->impl.cameraCount());
+        return static_cast<unsigned>(capturer->impl.camera_count());
     }
     catch (const rook::lw_libcamera_capture::CameraException &) {
         std::cerr << "CameraException caught in rook_lw_camera_capturer_get_camera_count" << std::endl;
@@ -92,10 +92,12 @@ extern "C" const char *rook_lw_camera_capturer_get_camera_name(const rook_lw_cam
     }
 
     try {
-        if (index >= capturer->impl.cameraCount()) {
+        if (index >= capturer->impl.camera_count()) {
             return nullptr;
         }
-        return capturer->impl.cameraName(index).c_str();
+        
+        auto* cameraNamePtr = capturer->impl.camera_name(index);
+        return cameraNamePtr == nullptr ? nullptr : cameraNamePtr->c_str();
     }
     catch (const rook::lw_libcamera_capture::CameraException &) {
         std::cerr << "CameraException caught in rook_lw_camera_capturer_get_camera_name" << std::endl;
@@ -107,7 +109,29 @@ extern "C" const char *rook_lw_camera_capturer_get_camera_name(const rook_lw_cam
     }
 }
 
-extern "C" int rook_lw_capture_10_frames(const char *output_dir)
+extern "C" int32_t rook_lw_camera_capturer_set_camera_source(
+    rook_lw_camera_capturer_t *capturer,
+    const char *camera_name)
+{
+    if (!capturer || !camera_name) {
+        return static_cast<int32_t>(-EINVAL);
+    }
+
+    try {
+        capturer->impl.set_camera_source(std::string(camera_name));
+        return 0; // Success
+    }
+    catch (const rook::lw_libcamera_capture::CameraException &e) {
+        std::cerr << "CameraException caught in rook_lw_camera_capturer_set_camera_source: " << e.what() << std::endl;
+        return (e.code() < 0) ? static_cast<int32_t>(e.code()) : static_cast<int32_t>(-EIO);
+    }
+    catch (...) {
+        std::cerr << "Unknown exception caught in rook_lw_camera_capturer_set_camera_source" << std::endl;
+        return static_cast<int32_t>(-EIO);
+    }
+}
+
+extern "C" int32_t rook_lw_capture_10_frames(const char *output_dir)
 {
     try {
         return rook::lw_libcamera_capture::capture10Frames(output_dir);

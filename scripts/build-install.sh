@@ -12,5 +12,6 @@ for dir in $projct_dirs; do
     (
         cd "$dir"
         ./scripts/build.sh
+        ./scripts/install.sh
     )
 done

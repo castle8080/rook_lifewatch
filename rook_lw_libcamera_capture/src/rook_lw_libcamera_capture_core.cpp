@@ -22,43 +22,118 @@
 
 namespace rook::lw_libcamera_capture {
 
+std::shared_ptr<libcamera::Camera> get_camera(const std::string &camera_name, libcamera::CameraManager &camera_manager)
+{
+	for (auto &cam : camera_manager.cameras()) {
+		if (cam->id() == camera_name) {
+			return cam;
+		}
+	}
+	return nullptr;
+}
 
 CameraCapturer::CameraCapturer()
 {
-	int ret = _cameraManager.start();
-	if (ret != 0)
+	int ret = _camera_manager.start();
+	if (ret != 0) {
 		throw CameraException("Failed to start libcamera CameraManager", -EIO);
+	}
 }
 
 CameraCapturer::~CameraCapturer()
 {
-    _cameraManager.stop();
-    _camera = nullptr;
+    _camera.reset();
+	_allocator.reset();
+	_config.reset();
+    _camera_manager.stop();
 }
 
-unsigned CameraCapturer::cameraCount() const
+unsigned CameraCapturer::camera_count() const
 {
-	return static_cast<unsigned>(_cameraManager.cameras().size());
+	return static_cast<unsigned>(_camera_manager.cameras().size());
 }
 
-std::string CameraCapturer::cameraName(unsigned index) const
+const std::string* CameraCapturer::camera_name(unsigned index) const
 {
-	const auto &cams = _cameraManager.cameras();
-	if (index >= cams.size())
-		return {};
-	return cams[index]->id();
+	const auto &cams = _camera_manager.cameras();
+	if (index >= cams.size()) {
+		return nullptr;
+	}
+	auto& camera_name = cams[index]->id();
+	return &camera_name;
 }
 
-void CameraCapturer::setCameraSource(const std::string &camera_name)
+void CameraCapturer::reset_camera()
 {
-	for (const auto &cam : _cameraManager.cameras()) {
-		if (cam->id() == camera_name) {
-			_camera = cam.get();
-			return;
-		}
+	if (_camera) {
+		_camera->release();
+		_camera.reset();
+	}
+	_allocator.reset();
+	_config.reset();
+}
+
+void CameraCapturer::set_camera_source(const std::string &camera_name)
+{
+	using namespace libcamera;
+
+	if (_camera) {
+		throw CameraException("Camera source already set", -EINVAL);
 	}
 
-    throw CameraException("Camera with specified name not found", -ENODEV);
+	std::cout << "Setting camera source to: " << camera_name << std::endl;
+
+	_camera = get_camera(camera_name, _camera_manager);
+
+	if (!_camera) {
+		throw CameraException("Camera with specified name not found", -ENODEV);
+	}
+
+	std::cout << "Acquiring camera: " << _camera->id() << std::endl;
+
+	if (int ret = _camera->acquire(); ret != 0) {
+		reset_camera();
+		throw CameraException("Failed to acquire camera", -EACCES);
+	}
+
+	std::cout << "Creating FrameBufferAllocator" << std::endl;
+
+	_allocator = std::make_shared<FrameBufferAllocator>(_camera);
+	if (!_allocator) {
+		reset_camera();
+		throw CameraException("Failed to create FrameBufferAllocator", -ENOMEM);
+	}
+
+	std::cout << "Configuring camera" << std::endl;
+
+	_config = _camera->generateConfiguration({ StreamRole::Viewfinder });
+	if (!_config || _config->empty()) {
+		reset_camera();
+		throw CameraException("Failed to generate camera configuration", -EINVAL);
+	}
+
+	StreamConfiguration &stream_config = _config->at(0);
+	stream_config.pixelFormat = formats::YUV420;
+	stream_config.size.width = 640;
+	stream_config.size.height = 480;
+
+	if (_config->validate() == CameraConfiguration::Invalid) {
+		reset_camera();
+		throw CameraException("Invalid camera configuration", -EINVAL);
+	}
+
+	if (int ret = _camera->configure(_config.get()); ret != 0) {
+		reset_camera();
+		throw CameraException("Failed to configure camera", -EIO);
+	}
+
+	// Allocate frame buffers for the configured stream.
+	std::cout << "Allocating frame buffers" << std::endl;
+	Stream *stream = stream_config.stream();
+	if (int ret = _allocator->allocate(stream); ret < 0) {
+		reset_camera();
+		throw CameraException("Failed to allocate frame buffers", -ENOMEM);
+	}
 }
 
 namespace {
