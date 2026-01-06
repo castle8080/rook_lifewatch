@@ -1,3 +1,5 @@
+use std::thread::sleep;
+
 use rook_lw_daemon::core::pipeline::FrameProcessor;
 use rook_lw_daemon::error::RookLWResult;
 use rook_lw_daemon::pipeline::simple_motion::SimpleFrameDiffer;
@@ -24,6 +26,12 @@ fn main() -> RookLWResult<()> {
         println!("Using source: {}", sources[0]);
         frame_source.set_source(&sources[0])?;
     }
+
+    println!("Starting frame source...");
+
+    frame_source.start()?;
+
+    sleep(std::time::Duration::from_secs(5));
 
     // Alternative: specify preference order
     // let mut frame_source = FrameSourceFactory::create_with_preference(

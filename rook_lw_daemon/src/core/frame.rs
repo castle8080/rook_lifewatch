@@ -27,6 +27,10 @@ pub enum FrameError {
 pub type FrameResult<T> = Result<T, FrameError>;
 
 pub trait FrameSource {
+    fn start(&mut self) -> FrameResult<()>;
+
+    fn stop(&mut self) -> FrameResult<()>;
+
     fn next_frame(&mut self) -> FrameResult<Frame>;
 
     fn list_sources(&mut self) -> FrameResult<Vec<String>>;

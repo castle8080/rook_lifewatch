@@ -64,6 +64,26 @@ impl Drop for LibCameraFrameSource {
 
 impl FrameSource for LibCameraFrameSource {
 
+    fn start(&mut self) -> FrameResult<()> {
+        unsafe {
+            let result = ffi::rook_lw_camera_capturer_start(self.inner.as_ptr());
+            if result != 0 {
+                return Err(FrameError::InitializationFailed("Failed to start camera capturer".to_string()));
+            }
+            Ok(())
+        }
+    }
+
+    fn stop(&mut self) -> FrameResult<()> {
+        unsafe {
+            let result = ffi::rook_lw_camera_capturer_stop(self.inner.as_ptr());
+            if result != 0 {
+                return Err(FrameError::InitializationFailed("Failed to stop camera capturer".to_string()));
+            }
+            Ok(())
+        }
+    }
+
     fn list_sources(&mut self) -> FrameResult<Vec<String>> {
         println!("Listing libcamera sources...");
         let mut sources = Vec::new();

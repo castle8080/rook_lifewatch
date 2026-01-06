@@ -64,6 +64,15 @@ const std::string* CameraCapturer::camera_name(unsigned index) const
 void CameraCapturer::reset_camera()
 {
 	if (_camera) {
+		if (_is_camera_started) {
+			try {
+				std::cout << "Stopping camera before reset" << std::endl;
+				_camera->stop();
+				_is_camera_started = false;
+			} catch (...) {
+				// Ignore exceptions during cleanup
+			}
+		}
 		_camera->release();
 		_camera.reset();
 	}
@@ -131,6 +140,83 @@ void CameraCapturer::set_camera_source(const std::string &camera_name)
 	if (int ret = _allocator->allocate(stream); ret < 0) {
 		reset_camera();
 		throw CameraException("Failed to allocate frame buffers", -ENOMEM);
+	}
+}
+
+
+void CameraCapturer::start()
+{
+	if (_is_camera_started) {
+		return;
+	}
+
+	if (!_camera) {
+		throw CameraException("Camera source not set", -EINVAL);
+	}
+
+	if (int ret = _camera->start(); ret != 0) {
+		throw CameraException("Failed to start camera", -EIO);
+	}
+
+	_is_camera_started = true;
+}
+
+void CameraCapturer::stop()
+{
+	if (!_is_camera_started) {
+		return;
+	}
+
+	if (!_camera) {
+		throw CameraException("Camera source not set", -EINVAL);
+	}
+
+	if (int ret = _camera->stop(); ret != 0) {
+		throw CameraException("Failed to stop camera", -EIO);
+	}
+
+	_is_camera_started = false;
+}
+
+void CameraCapturer::acquire_frame()
+{
+	using namespace libcamera;
+
+	if (!_camera || !_allocator || !_config) {
+		throw CameraException("Camera source not set", -EINVAL);
+	}
+
+	Stream *stream = _config->at(0).stream();
+
+	std::vector<std::unique_ptr<Request>> requests;
+	requests.reserve(_allocator->buffers(stream).size());
+
+	for (const std::unique_ptr<FrameBuffer> &buffer : _allocator->buffers(stream)) {
+		std::unique_ptr<Request> request = _camera->createRequest();
+		if (!request) {
+			continue;
+		}
+
+		if (request->addBuffer(stream, buffer.get()) != 0) {
+			continue;
+		}
+
+		requests.push_back(std::move(request));
+	}
+
+	if (requests.empty()) {
+		throw CameraException("Failed to create requests", -ENOMEM);
+	}
+
+	if (int ret = _camera->start(); ret != 0) {
+		throw CameraException("Failed to start camera", -EIO);
+	}
+
+	for (std::unique_ptr<Request> &req : requests) {
+		if (_camera->queueRequest(req.get()) != 0) {
+			_camera->stop();
+			throw CameraException("Failed to queue request", -EIO);
+		}
 	}
 }
 

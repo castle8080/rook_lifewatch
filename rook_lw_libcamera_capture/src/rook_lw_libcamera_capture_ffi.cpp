@@ -131,6 +131,48 @@ extern "C" int32_t rook_lw_camera_capturer_set_camera_source(
     }
 }
 
+extern "C" int32_t rook_lw_camera_capturer_start(
+    rook_lw_camera_capturer_t *capturer)
+{
+    if (!capturer) {
+        return static_cast<int32_t>(-EINVAL);
+    }
+
+    try {
+        capturer->impl.start();
+        return 0; // Success
+    }
+    catch (const rook::lw_libcamera_capture::CameraException &e) {
+        std::cerr << "CameraException caught in rook_lw_camera_capturer_start: " << e.what() << std::endl;
+        return (e.code() < 0) ? static_cast<int32_t>(e.code()) : static_cast<int32_t>(-EIO);
+    }
+    catch (...) {
+        std::cerr << "Unknown exception caught in rook_lw_camera_capturer_start" << std::endl;
+        return static_cast<int32_t>(-EIO);
+    }
+}
+
+extern "C" int32_t rook_lw_camera_capturer_stop(
+    rook_lw_camera_capturer_t *capturer)
+{
+    if (!capturer) {
+        return static_cast<int32_t>(-EINVAL);
+    }
+
+    try {
+        capturer->impl.stop();
+        return 0; // Success
+    }
+    catch (const rook::lw_libcamera_capture::CameraException &e) {
+        std::cerr << "CameraException caught in rook_lw_camera_capturer_stop: " << e.what() << std::endl;
+        return (e.code() < 0) ? static_cast<int32_t>(e.code()) : static_cast<int32_t>(-EIO);
+    }
+    catch (...) {
+        std::cerr << "Unknown exception caught in rook_lw_camera_capturer_stop" << std::endl;
+        return static_cast<int32_t>(-EIO);
+    }
+}
+
 extern "C" int32_t rook_lw_capture_10_frames(const char *output_dir)
 {
     try {

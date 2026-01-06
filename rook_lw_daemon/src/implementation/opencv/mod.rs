@@ -111,6 +111,16 @@ impl FrameSource for OpencvFrameSource {
         }
     }
 
+    fn start(&mut self) -> FrameResult<()> {
+        // TODO
+        Ok(())
+    }
+
+    fn stop(&mut self) -> FrameResult<()> {
+        // TODO
+        Ok(())
+    }
+
     fn next_frame(&mut self) -> FrameResult<Frame> {
         let capture = self.capture.as_mut().ok_or_else(|| {
             FrameError::Capture("OpenCV capture not initialized. Call set_source first.".to_string())

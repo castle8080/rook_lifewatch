@@ -10,30 +10,39 @@ int main(int argc, char **argv)
 		return 2;
 	}
 
-	rook::lw_libcamera_capture::CameraCapturer capturer;
+	try {
+		rook::lw_libcamera_capture::CameraCapturer capturer;
 
-	for (unsigned i = 0; i < capturer.camera_count(); ++i) {
-		std::printf("Camera %u: %s\n", i, capturer.camera_name(i)->c_str());
+		for (unsigned i = 0; i < capturer.camera_count(); ++i) {
+			std::printf("Camera %u: %s\n", i, capturer.camera_name(i)->c_str());
+		}
+
+		if (capturer.camera_count() == 0) {
+			std::fprintf(stderr, "No cameras found\n");
+			return 1;
+		}
+
+		const std::string* cameraName = capturer.camera_name(0);
+		if (cameraName != nullptr) {
+			capturer.set_camera_source(*cameraName);
+		}
+
+		capturer.start();
+
+		capturer.stop();
 	}
-
-	if (capturer.camera_count() == 0) {
-		std::fprintf(stderr, "No cameras found\n");
+	catch (const rook::lw_libcamera_capture::CameraException &e) {
+		std::fprintf(stderr, "CameraException: %s (code %d)\n", e.what(), e.code());
+		return 1;
+	}
+	catch (const std::exception &e) {
+		std::fprintf(stderr, "Exception: %s\n", e.what());
+		return 1;
+	}
+	catch (...) {
+		std::fprintf(stderr, "Unknown exception caught\n");
 		return 1;
 	}
 
-	const std::string* cameraName = capturer.camera_name(0);
-	if (cameraName != nullptr) {
-		capturer.set_camera_source(*cameraName);
-	}
-
-	/*
-	int rc = rook_lw_capture_10_frames(argv[1]);
-	if (rc != 0) {
-		std::fprintf(stderr, "rook_lw_capture_10_frames failed: %d\n", rc);
-		return 1;
-	}
-
-	std::printf("Wrote 10 frames to %s\n", argv[1]);
-	*/
 	return 0;
 }
