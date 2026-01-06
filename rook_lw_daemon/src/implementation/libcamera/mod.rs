@@ -100,6 +100,14 @@ impl FrameSource for LibCameraFrameSource {
     }
 
     fn next_frame(&mut self) -> FrameResult<Frame> {
+
+        unsafe {
+            let result = ffi::rook_lw_camera_capturer_acquire_frame(self.inner.as_ptr());
+            if result != 0 {
+                return Err(FrameError::Capture("Failed to acquire frame".to_string()));
+            }
+        }
+
         let img = DynamicImage::new_rgb8(1, 1);
         Ok(Frame {
             image: img,

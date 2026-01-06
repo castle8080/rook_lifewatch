@@ -141,6 +141,9 @@ void CameraCapturer::set_camera_source(const std::string &camera_name)
 		reset_camera();
 		throw CameraException("Failed to allocate frame buffers", -ENOMEM);
 	}
+
+	// Register callback for request completion.
+	_camera->requestCompleted.connect(this, &CameraCapturer::on_request_completed);
 }
 
 
@@ -186,38 +189,43 @@ void CameraCapturer::acquire_frame()
 		throw CameraException("Camera source not set", -EINVAL);
 	}
 
+	if (!_is_camera_started) {
+		throw CameraException("Camera not started", -EINVAL);
+	}
+
+	std::cout << "Acquiring frame:" << __FILE__ << ":" << __LINE__ << std::endl;
+
 	Stream *stream = _config->at(0).stream();
 
-	std::vector<std::unique_ptr<Request>> requests;
-	requests.reserve(_allocator->buffers(stream).size());
+	// TODO: might not assume that buffer 0 is free.
+	// Need to track buffers in use vs free.
+	auto& buffers = _allocator->buffers(stream);
 
-	for (const std::unique_ptr<FrameBuffer> &buffer : _allocator->buffers(stream)) {
-		std::unique_ptr<Request> request = _camera->createRequest();
-		if (!request) {
-			continue;
-		}
-
-		if (request->addBuffer(stream, buffer.get()) != 0) {
-			continue;
-		}
-
-		requests.push_back(std::move(request));
+	std::shared_ptr<libcamera::Request> request = std::move(_camera->createRequest(_next_request_sequence++));
+	if (request->addBuffer(stream, buffers[0].get()) != 0) {
+		throw CameraException("Failed to add buffer to request", -EIO);
 	}
 
-	if (requests.empty()) {
-		throw CameraException("Failed to create requests", -ENOMEM);
+	if (_camera->queueRequest(request.get()) != 0) {
+		throw CameraException("Failed to queue request", -EIO);
 	}
 
-	if (int ret = _camera->start(); ret != 0) {
-		throw CameraException("Failed to start camera", -EIO);
-	}
+	_requests.push_back(request);
 
-	for (std::unique_ptr<Request> &req : requests) {
-		if (_camera->queueRequest(req.get()) != 0) {
-			_camera->stop();
-			throw CameraException("Failed to queue request", -EIO);
-		}
+	std::cout << "Acquiring frame:" << __FILE__ << ":" << __LINE__ << std::endl;
+}
+
+void CameraCapturer::on_request_completed(libcamera::Request *request) {
+	std::cout << "on_request_completed:" << __FILE__ << ":" << __LINE__ << std::endl;
+	if (!request) {
+		return;
 	}
+	std::cout
+		<< "Request completed with status: "
+		<< request->status()
+		<< " "
+		<< request->sequence()
+		<< std::endl;
 }
 
 namespace {

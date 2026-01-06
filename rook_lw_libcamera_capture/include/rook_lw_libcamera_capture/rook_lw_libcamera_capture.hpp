@@ -27,6 +27,8 @@ private:
 	int _code;
 };
 
+// TODO: Go fix naming conventions.
+
 class CameraCapturer {
 public:
 	CameraCapturer();
@@ -52,11 +54,16 @@ public:
 
 private:
 
+	void on_request_completed(libcamera::Request *request);
+
 	libcamera::CameraManager _camera_manager;
 	std::shared_ptr<libcamera::FrameBufferAllocator> _allocator = nullptr;
     std::shared_ptr<libcamera::Camera> _camera = nullptr;
 	std::shared_ptr<libcamera::CameraConfiguration> _config = nullptr;
 	bool _is_camera_started = false;
+
+	std::vector<std::shared_ptr<libcamera::Request>> _requests;
+	uint64_t _next_request_sequence = 0;
 };
 
 // Opens the first available libcamera camera and writes 10 frames to output_dir.

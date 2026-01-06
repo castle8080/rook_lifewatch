@@ -1,5 +1,7 @@
 #pragma once
 
+#include <stdint.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -36,6 +38,12 @@ unsigned rook_lw_camera_capturer_get_camera_count(const rook_lw_camera_capturer_
 // Returns null if capturer is null or index is out of range.
 const char *rook_lw_camera_capturer_get_camera_name(const rook_lw_camera_capturer_t *capturer,
 													unsigned index);
+
+int32_t rook_lw_camera_capturer_start(rook_lw_camera_capturer_t *capturer);
+
+int32_t rook_lw_camera_capturer_stop(rook_lw_camera_capturer_t *capturer);
+
+int32_t rook_lw_camera_capturer_acquire_frame(rook_lw_camera_capturer_t *capturer);
 
 #ifdef __cplusplus
 }

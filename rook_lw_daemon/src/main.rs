@@ -1,8 +1,6 @@
 use std::thread::sleep;
 
-use rook_lw_daemon::core::pipeline::FrameProcessor;
 use rook_lw_daemon::error::RookLWResult;
-use rook_lw_daemon::pipeline::simple_motion::SimpleFrameDiffer;
 use rook_lw_daemon::implementation::factory::FrameSourceFactory;
 
 fn main() -> RookLWResult<()> {
@@ -31,21 +29,16 @@ fn main() -> RookLWResult<()> {
 
     frame_source.start()?;
 
-    sleep(std::time::Duration::from_secs(5));
+    sleep(std::time::Duration::from_secs(1));
 
-    // Alternative: specify preference order
-    // let mut frame_source = FrameSourceFactory::create_with_preference(
-    //     FrameSourcePreference::PreferOpenCV
-    // ).expect("Failed to create frame source");
+    let frame1 = frame_source.next_frame()?;
+    println!("Acquired first frame... {0:?}", frame1.metadata);
+    sleep(std::time::Duration::from_secs(1));
 
-    let mut processor = SimpleFrameDiffer;
+    let frame2 = frame_source.next_frame()?;
+    println!("Acquired second frame... {0:?}", frame2.metadata);
+    sleep(std::time::Duration::from_secs(1));
 
-    let frame = frame_source.next_frame()?;
-    let events = processor.process_frame(frame)?;
-
-    for event in events {
-        println!("motion event: {:?}", event);
-    }
-
+    println!("Complete...");
     Ok(())
 }

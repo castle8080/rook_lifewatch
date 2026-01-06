@@ -37,4 +37,8 @@ unsafe extern "C" {
     pub unsafe fn rook_lw_camera_capturer_stop(
         capturer: *mut rook_lw_camera_capturer_t,
     ) -> i32;
+
+    pub unsafe fn rook_lw_camera_capturer_acquire_frame(
+        capturer: *mut rook_lw_camera_capturer_t
+    ) -> i32;
 }
