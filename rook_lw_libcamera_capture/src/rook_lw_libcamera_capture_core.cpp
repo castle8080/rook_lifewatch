@@ -223,9 +223,12 @@ void CameraCapturer::on_request_completed(libcamera::Request *request) {
 	std::cout
 		<< "Request completed with status: "
 		<< request->status()
-		<< " "
-		<< request->sequence()
+		<< " sequence->" << request->sequence()
+		<< " cookie->" << request->cookie()
 		<< std::endl;
+
+	// I need to figure out how to get the frame data out of here.
+
 }
 
 namespace {
