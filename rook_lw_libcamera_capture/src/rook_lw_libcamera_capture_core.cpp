@@ -120,7 +120,7 @@ void CameraCapturer::set_camera_source(const std::string &camera_name)
 	}
 
 	StreamConfiguration &stream_config = _config->at(0);
-	stream_config.pixelFormat = formats::YUV420;
+	stream_config.pixelFormat = formats::BGR888;
 	stream_config.size.width = 640;
 	stream_config.size.height = 480;
 
@@ -128,6 +128,8 @@ void CameraCapturer::set_camera_source(const std::string &camera_name)
 		reset_camera();
 		throw CameraException("Invalid camera configuration", -EINVAL);
 	}
+
+	std::cout << "Pixel format: " << stream_config.pixelFormat << std::endl;
 
 	if (int ret = _camera->configure(_config.get()); ret != 0) {
 		reset_camera();
@@ -181,7 +183,51 @@ void CameraCapturer::stop()
 	_is_camera_started = false;
 }
 
-void CameraCapturer::acquire_frame()
+int CameraCapturer::checkout_frame_buffer_index()
+{
+	using namespace libcamera;
+
+	if (!_camera || !_allocator || !_config) {
+		throw CameraException("Camera source not set", -EINVAL);
+	}
+
+	Stream *stream = _config->at(0).stream();
+	auto& buffers = _allocator->buffers(stream);
+	
+	// Implementation to checkout a frame buffer index
+	{
+		std::lock_guard<std::mutex> lock(_mutex);
+		for (std::size_t i = 0; i < buffers.size(); ++i) {
+			if (_in_use_frame_buffer_indices.find(i) == _in_use_frame_buffer_indices.end()) {
+				_in_use_frame_buffer_indices.insert(i);
+				return i;
+			}
+		}
+	}
+
+	return -1;
+}
+
+void CameraCapturer::return_frame_buffer_index(int index)
+{
+	// Implementation to return a frame buffer index
+	{
+		std::lock_guard<std::mutex> lock(_mutex);
+		_in_use_frame_buffer_indices.erase(index);
+	}
+}
+
+void CameraCapturer::release_request_resources(CaptureRequest* request)
+{
+	if (!request) {
+		return;
+	}
+
+	int frame_buffer_index = request->get_frame_buffer_index();
+	return_frame_buffer_index(frame_buffer_index);
+}
+
+std::shared_ptr<CaptureRequest> CameraCapturer::acquire_frame()
 {
 	using namespace libcamera;
 
@@ -201,18 +247,37 @@ void CameraCapturer::acquire_frame()
 	// Need to track buffers in use vs free.
 	auto& buffers = _allocator->buffers(stream);
 
+	// Get a frame buffer that can be used for this request.
+	int frame_buffer_index = checkout_frame_buffer_index();
+	if (frame_buffer_index < 0) {
+		throw CameraException("No available frame buffers", -EIO);
+	}
+
 	std::shared_ptr<libcamera::Request> request = std::move(_camera->createRequest(_next_request_sequence++));
-	if (request->addBuffer(stream, buffers[0].get()) != 0) {
+	if (request->addBuffer(stream, buffers[frame_buffer_index].get()) != 0) {
+		return_frame_buffer_index(frame_buffer_index);
 		throw CameraException("Failed to add buffer to request", -EIO);
 	}
 
 	if (_camera->queueRequest(request.get()) != 0) {
+		return_frame_buffer_index(frame_buffer_index);
 		throw CameraException("Failed to queue request", -EIO);
 	}
 
-	_requests.push_back(request);
+	std::shared_ptr<CaptureRequest> capture_request =
+		std::make_shared<CaptureRequest>(this, request, frame_buffer_index);
+
+	capture_request->set_status(CaptureRequestPending);
+
+	// Store the CaptureRequest associated with this request's cookie.
+	{
+		std::lock_guard<std::mutex> lock(_mutex);
+		_requests[request->cookie()] = capture_request;
+	}
 
 	std::cout << "Acquiring frame:" << __FILE__ << ":" << __LINE__ << std::endl;
+
+	return capture_request;
 }
 
 void CameraCapturer::on_request_completed(libcamera::Request *request) {
@@ -220,6 +285,7 @@ void CameraCapturer::on_request_completed(libcamera::Request *request) {
 	if (!request) {
 		return;
 	}
+
 	std::cout
 		<< "Request completed with status: "
 		<< request->status()
@@ -227,8 +293,63 @@ void CameraCapturer::on_request_completed(libcamera::Request *request) {
 		<< " cookie->" << request->cookie()
 		<< std::endl;
 
-	// I need to figure out how to get the frame data out of here.
+	// Find the associated CaptureRequest and notify it.
+	auto it = _requests.find(request->cookie());
+	if (it != _requests.end()) {
+		auto value = std::move(it->second);
+		_requests.erase(it);
 
+		if (request->status() == libcamera::Request::RequestCancelled) {
+			value->on_request_cancelled();
+		}
+		else {
+			value->on_request_completed();
+		}
+	}
+}
+
+CaptureRequest::~CaptureRequest()
+{
+	std::cout << "CaptureRequest::~CaptureRequest()" << std::endl;
+
+	if (_capturer) {
+		_capturer->release_request_resources(this);
+	}
+}
+
+void CaptureRequest::set_status(CaptureRequestStatus status) {
+	std::lock_guard<std::mutex> lock(_mutex);
+	_status = status;
+	_cv.notify_all();
+}
+
+CaptureRequestStatus CaptureRequest::get_status() {
+	std::lock_guard<std::mutex> lock(_mutex);
+	return _status;
+}
+
+int CaptureRequest::get_frame_buffer_index() {
+	return _frame_buffer_index;
+}
+
+void CaptureRequest::on_request_completed()
+{
+	std::cout << "CaptureRequest::on_request_completed()" << std::endl;
+	set_status(CaptureRequestComplete);
+}
+
+void CaptureRequest::on_request_cancelled()
+{
+	std::cout << "CaptureRequest::on_request_cancelled()" << std::endl;
+	set_status(CaptureRequestComplete);
+}
+
+void CaptureRequest::wait_for_completion()
+{
+	std::unique_lock<std::mutex> lock(_mutex);
+	_cv.wait(lock, [this]() {
+		return _status == CaptureRequestComplete || _status == CaptureRequestCancelled;
+	});
 }
 
 namespace {

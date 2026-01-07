@@ -29,6 +29,18 @@ int main(int argc, char **argv)
 
 		capturer.start();
 
+		for (int i = 0; i < 5; i++)
+		{
+			std::cout << "Capturing frame " << (i + 1) << "..." << std::endl;
+			std::cout << "Acquiring frame..." << std::endl;
+			auto capture_request = capturer.acquire_frame();
+
+			std::cout << "Waiting for frame completion..." << std::endl;
+			capture_request->wait_for_completion();
+
+			std::cout << "From completed: status = " << capture_request->get_status() << std::endl;
+		}
+
 		capturer.stop();
 	}
 	catch (const rook::lw_libcamera_capture::CameraException &e) {
