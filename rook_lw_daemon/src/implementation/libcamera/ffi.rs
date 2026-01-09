@@ -1,5 +1,5 @@
 use std::ffi::c_void;
-use std::os::raw::{c_char, c_int};
+use std::os::raw::c_char;
 
 #[repr(C)]
 pub struct rook_lw_camera_capturer_t {
@@ -31,6 +31,11 @@ unsafe extern "C" {
         source: *const c_char,
     ) -> i32;
 
+    pub unsafe fn rook_lw_camera_capturer_get_pixel_format(
+        capturer: *const rook_lw_camera_capturer_t,
+        pixel_format: *mut u32,
+    ) -> i32;
+    
     pub unsafe fn rook_lw_camera_capturer_start(
         capturer: *mut rook_lw_camera_capturer_t,
     ) -> i32;
@@ -49,14 +54,19 @@ unsafe extern "C" {
         capture_request: *mut rook_lw_capture_request_t,
     ) -> i32;
 
+    pub unsafe fn rook_lw_capture_request_get_status(
+        capture_request: *mut rook_lw_capture_request_t,
+        status: *mut i32,
+    ) -> i32;
+
     pub unsafe fn rook_lw_capture_request_get_plane_count(
         capture_request: *mut rook_lw_capture_request_t,
-        out_plane_count: *mut c_int,
+        out_plane_count: *mut i32,
     ) -> i32;
 
     pub unsafe fn rook_lw_capture_request_get_plane_data(
         capture_request: *mut rook_lw_capture_request_t,
-        plane_index: c_int,
+        plane_index: i32,
         plane_data: *mut *mut c_void,
         plane_length: *mut usize,
     ) -> i32;

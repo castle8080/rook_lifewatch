@@ -144,7 +144,7 @@ void CameraCapturer::set_camera_source(const std::string &camera_name)
 	_camera->requestCompleted.connect(this, &CameraCapturer::on_request_completed);
 }
 
-std::string CameraCapturer::get_pixel_format() {
+uint32_t CameraCapturer::get_pixel_format() {
 	using namespace libcamera;
 
 	if (!_camera || !_config) {
@@ -152,7 +152,8 @@ std::string CameraCapturer::get_pixel_format() {
 	}
 
 	StreamConfiguration &stream_config = _config->at(0);
-	return stream_config.pixelFormat.toString();
+
+	return stream_config.pixelFormat;
 }
 
 void CameraCapturer::start()

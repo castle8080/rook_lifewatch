@@ -60,7 +60,7 @@ public:
 
 	void stop();
 
-	std::string get_pixel_format();
+	uint32_t get_pixel_format();
 
 private:
 	friend class CaptureRequest;
@@ -92,12 +92,11 @@ private:
 	std::set<int> _in_use_frame_buffer_indices;
 };
 
-
 enum CaptureRequestStatus {
-	CaptureRequestInitial,
-	CaptureRequestPending,
-	CaptureRequestComplete,
-	CaptureRequestCancelled,
+	CaptureRequestInitial = 0,
+	CaptureRequestPending = 1,
+	CaptureRequestComplete = 2,
+	CaptureRequestCancelled = 3,
 };
 
 class CaptureRequestMappedPlane {

@@ -6,7 +6,7 @@ use std::time::SystemTime;
 pub struct SimpleFrameDiffer;
 
 impl FrameProcessor for SimpleFrameDiffer {
-    fn process_frame(&mut self, frame: Box<dyn Frame>) -> Result<Vec<MotionEvent>, ProcessingError> {
+    fn process_frame(&mut self, _frame: &dyn Frame) -> Result<Vec<MotionEvent>, ProcessingError> {
         let event = MotionEvent {
             timestamp: SystemTime::now(),
             kind: MotionEventKind::FrameDifference,

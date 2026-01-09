@@ -1,19 +1,37 @@
 use crate::core::frame::{Frame, FrameError, FrameSource, FrameResult};
-use image::{DynamicImage, ImageBuffer, Rgb};
 use opencv::prelude::*;
 use opencv::videoio::{VideoCapture, VideoCaptureTrait, CAP_ANY};
-use std::time::SystemTime;
+use std::cell::RefCell;
 
 pub struct OpenCvFrame {
     mat: opencv::core::Mat,
 }
 
 impl Frame for OpenCvFrame {
+
+    fn get_plane_count(&self) -> FrameResult<usize> {
+        // OpenCV Mat is typically a single plane
+        Ok(1)
+    }
+
+    fn get_plane_data(&self, plane_index: usize) -> FrameResult<&[u8]> {
+        if plane_index != 0 {
+            return Err(FrameError::ProcessingError(
+                "Invalid plane index for OpenCV frame".to_string(),
+            ));
+        }
+
+        let data = self.mat.data_bytes().map_err(|e| {
+            FrameError::ProcessingError(format!("Failed to get frame data: {}", e))
+        })?;
+
+        Ok(data)
+    }
 }
 
 pub struct OpencvFrameSource {
-    source_name: Option<String>,
-    capture: Option<VideoCapture>,
+    source_name: RefCell<Option<String>>,
+    capture: RefCell<Option<VideoCapture>>,
 }
 
 impl OpencvFrameSource {
@@ -21,8 +39,8 @@ impl OpencvFrameSource {
     /// Try to create a new opencv frame source from the default camera (camera 0)
     pub fn new() -> FrameResult<Self> {
         Ok(Self {
-            source_name: None,
-            capture: None,
+            source_name: RefCell::new(None),
+            capture: RefCell::new(None),
         })
     }
 
@@ -38,8 +56,8 @@ impl OpencvFrameSource {
 
         match capture.is_opened() {
             Ok(true) => {
-                self.source_name = Some(format!("opencv-camera-{}", camera_id));
-                self.capture = Some(capture);
+                *self.source_name.get_mut() = Some(format!("opencv-camera-{}", camera_id));
+                *self.capture.get_mut() = Some(capture);
                 Ok(())
             }
             Ok(false) => {
@@ -65,8 +83,8 @@ impl OpencvFrameSource {
 
         match capture.is_opened() {
             Ok(true) => {
-                self.source_name = Some(format!("opencv-url-{}", url));
-                self.capture = Some(capture);
+                *self.source_name.get_mut() = Some(format!("opencv-url-{}", url));
+                *self.capture.get_mut() = Some(capture);
                 Ok(())
             }
             Ok(false) => {
@@ -89,14 +107,14 @@ impl Drop for OpencvFrameSource {
     fn drop(&mut self) {
         // Explicitly release the capture to avoid GStreamer warnings
         // OpenCV's VideoCapture uses GStreamer backend which needs proper cleanup
-        match &mut self.capture {
+        match self.capture.get_mut().as_mut() {
             Some(capture) => {
                 let _ = capture.release();
             }
             None => {}
         }
-        self.capture = None;
-        self.source_name = None;
+        *self.capture.get_mut() = None;
+        *self.source_name.get_mut() = None;
     }
 }
 
@@ -128,8 +146,9 @@ impl FrameSource for OpencvFrameSource {
         Ok(())
     }
 
-    fn next_frame(&mut self) -> FrameResult<Box<dyn Frame>> {
-        let capture = self.capture.as_mut().ok_or_else(|| {
+    fn next_frame(&self) -> FrameResult<Box<dyn Frame + '_>> {
+        let mut capture_ref = self.capture.borrow_mut();
+        let capture = capture_ref.as_mut().ok_or_else(|| {
             FrameError::Capture("OpenCV capture not initialized. Call set_source first.".to_string())
         })?;
 
@@ -145,6 +164,14 @@ impl FrameSource for OpencvFrameSource {
 
         let opencv_frame = OpenCvFrame { mat: frame };
         Ok(Box::new(opencv_frame))
+    }
+
+    fn get_pixel_format(&self) -> FrameResult<u32> {
+        // OpenCV does not expose pixel format directly.
+        // For simplicity, we assume BGR format (which is common in OpenCV).
+        // In a real implementation, you would map OpenCV's Mat type to a pixel format.
+        const PIXEL_FORMAT_BGR: u32 = 0x00000001; // Placeholder value
+        Ok(PIXEL_FORMAT_BGR)
     }
 }
 

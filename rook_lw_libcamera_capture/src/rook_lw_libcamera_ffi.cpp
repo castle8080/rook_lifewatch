@@ -138,6 +138,25 @@ extern "C" int32_t rook_lw_camera_capturer_set_camera_source(
     }
 }
 
+extern "C" int32_t rook_lw_camera_capturer_get_pixel_format(rook_lw_camera_capturer_t *capturer, uint32_t *out_pixel_format) {
+    if (!capturer) {
+        return static_cast<int32_t>(-EINVAL);
+    }
+
+    try {
+        *out_pixel_format = capturer->impl.get_pixel_format();
+        return 0;
+    }
+    catch (const rook::lw_libcamera_capture::CameraException &e) {
+        std::cerr << "CameraException caught in rook_lw_camera_capturer_get_pixel_format: " << e.what() << std::endl;
+        return (e.code() < 0) ? static_cast<int32_t>(e.code()) : static_cast<int32_t>(-EIO);
+    }
+    catch (...) {
+        std::cerr << "Unknown exception caught in rook_lw_camera_capturer_get_pixel_format" << std::endl;
+        return static_cast<int32_t>(-EIO);
+    }
+}
+
 extern "C" int32_t rook_lw_camera_capturer_start(
     rook_lw_camera_capturer_t *capturer)
 {
@@ -216,6 +235,26 @@ extern "C" void rook_lw_capture_request_destroy(rook_lw_capture_request_t *reque
     delete request;
 }
 
+extern "C" int32_t rook_lw_capture_request_get_status(rook_lw_capture_request_t *capture_request, int32_t *out_status) {
+    if (!capture_request || !out_status) {
+        return static_cast<int32_t>(-EINVAL);
+    }
+
+    try {
+        auto status = capture_request->impl->get_status();
+        *out_status = static_cast<int32_t>(status);
+        return 0; // Success
+    }
+    catch (const rook::lw_libcamera_capture::CameraException &e) {
+        std::cerr << "CameraException caught in rook_lw_capture_request_get_status: " << e.what() << std::endl;
+        return (e.code() < 0) ? static_cast<int32_t>(e.code()) : static_cast<int32_t>(-EIO);
+    }
+    catch (...) {
+        std::cerr << "Unknown exception caught in rook_lw_capture_request_get_status" << std::endl;
+        return static_cast<int32_t>(-EIO);
+    }
+}
+
 extern "C" int32_t rook_lw_capture_request_wait_for_completion(rook_lw_capture_request_t *capture_request) {
     if (!capture_request) {
         return static_cast<int32_t>(-EINVAL);
@@ -237,7 +276,7 @@ extern "C" int32_t rook_lw_capture_request_wait_for_completion(rook_lw_capture_r
 
 extern "C" int32_t rook_lw_capture_request_get_plane_count(
     rook_lw_capture_request_t *capture_request,
-	int *out_plane_count)
+	int32_t *out_plane_count)
 {
     if (!capture_request || !out_plane_count) {
         return static_cast<int32_t>(-EINVAL);
@@ -259,7 +298,7 @@ extern "C" int32_t rook_lw_capture_request_get_plane_count(
 
 extern "C" int32_t rook_lw_capture_request_get_plane_data(
     rook_lw_capture_request_t *capture_request,
-    int plane_index,
+    int32_t plane_index,
     void **plane_data,
     size_t *plane_length)
 {

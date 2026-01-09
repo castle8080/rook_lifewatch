@@ -26,7 +26,6 @@ CaptureRequest::CaptureRequest(
 {
 }
 
-
 CaptureRequest::~CaptureRequest()
 {
 	std::cout << "CaptureRequest::~CaptureRequest()" << std::endl;
@@ -82,7 +81,7 @@ void CaptureRequest::on_request_cancelled()
 {
 	std::cout << "CaptureRequest::on_request_cancelled()" << std::endl;
 	std::lock_guard<std::mutex> lock(_mutex);
-	_status = CaptureRequestComplete;
+	_status = CaptureRequestCancelled;
 	clear_mapped_planes();
 	_cv.notify_all();
 }

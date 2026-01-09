@@ -36,15 +36,26 @@ unsigned rook_lw_camera_capturer_get_camera_count(const rook_lw_camera_capturer_
 const char *rook_lw_camera_capturer_get_camera_name(const rook_lw_camera_capturer_t *capturer,
 													unsigned index);
 
+// Sets the camera source by libcamera camera id (as returned by
+// rook_lw_camera_capturer_get_camera_name).
+//
+// Returns 0 on success or a negative errno-style code on error.
+int32_t rook_lw_camera_capturer_set_camera_source(rook_lw_camera_capturer_t *capturer,
+												const char *camera_name);
+
 int32_t rook_lw_camera_capturer_start(rook_lw_camera_capturer_t *capturer);
 
 int32_t rook_lw_camera_capturer_stop(rook_lw_camera_capturer_t *capturer);
+
+int32_t rook_lw_camera_capturer_get_pixel_format(rook_lw_camera_capturer_t *capturer, uint32_t *out_pixel_format);
 
 rook_lw_capture_request_t *rook_lw_camera_capturer_acquire_frame(rook_lw_camera_capturer_t *capturer);
 
 void rook_lw_capture_request_destroy(rook_lw_capture_request_t *capture_request);
 
 int32_t rook_lw_capture_request_wait_for_completion(rook_lw_capture_request_t *capture_request);
+
+int32_t rook_lw_capture_request_get_status(rook_lw_capture_request_t *capture_request, int32_t *out_status);
 
 int32_t rook_lw_capture_request_get_plane_count(rook_lw_capture_request_t *capture_request,
 											   int *out_plane_count);
