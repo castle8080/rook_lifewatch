@@ -8,7 +8,7 @@ pub enum ProcessingError {
 }
 
 pub trait FrameProcessor: Send {
-    fn process_frame(&mut self, frame: Frame) -> Result<Vec<MotionEvent>, ProcessingError>;
+    fn process_frame(&mut self, frame: Box<dyn Frame>) -> Result<Vec<MotionEvent>, ProcessingError>;
 }
 
 pub trait EventSink: Send {

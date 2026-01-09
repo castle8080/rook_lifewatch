@@ -1,10 +1,23 @@
-use crate::core::frame::{Frame, FrameError, FrameMetadata, FrameSource, FrameResult};
-use image::DynamicImage;
+use crate::core::frame::{Frame, FrameError, FrameSource, FrameResult};
 use std::ffi::CStr;
 use std::ptr::NonNull;
-use std::time::SystemTime;
 
 mod ffi;
+
+pub struct LibCameraFrame {
+    inner: NonNull<ffi::rook_lw_capture_request_t>,
+}
+
+impl Drop for LibCameraFrame {
+    fn drop(&mut self) {
+        unsafe {
+            ffi::rook_lw_capture_request_destroy(self.inner.as_ptr())
+        };
+    }
+}
+
+impl Frame for LibCameraFrame {
+}
 
 /// Safe RAII wrapper around `rook_lw_camera_capturer_t*`.
 ///
@@ -99,24 +112,15 @@ impl FrameSource for LibCameraFrameSource {
         self.set_camera_source(source)
     }
 
-    fn next_frame(&mut self) -> FrameResult<Frame> {
-
+    fn next_frame(&mut self) -> FrameResult<Box<dyn Frame>> {
         unsafe {
             let result = ffi::rook_lw_camera_capturer_acquire_frame(self.inner.as_ptr());
             if result.is_null() {
                 return Err(FrameError::ProcessingError("Failed to acquire frame".to_string()));
             }
+            Ok(Box::new(LibCameraFrame {
+                inner: NonNull::new_unchecked(result),
+            }))
         }
-
-        // TODO: need to change Frame and have it so a different impl of Frame can be returned
-        // I want to be able to return a handle specific to libcamera.
-
-        let img = DynamicImage::new_rgb8(1, 1);
-        Ok(Frame {
-            image: img,
-            metadata: FrameMetadata {
-                timestamp: SystemTime::now()
-            },
-        })
     }
 }

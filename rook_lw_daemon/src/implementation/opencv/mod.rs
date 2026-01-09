@@ -1,8 +1,15 @@
-use crate::core::frame::{Frame, FrameError, FrameMetadata, FrameSource, FrameResult};
+use crate::core::frame::{Frame, FrameError, FrameSource, FrameResult};
 use image::{DynamicImage, ImageBuffer, Rgb};
 use opencv::prelude::*;
 use opencv::videoio::{VideoCapture, VideoCaptureTrait, CAP_ANY};
 use std::time::SystemTime;
+
+pub struct OpenCvFrame {
+    mat: opencv::core::Mat,
+}
+
+impl Frame for OpenCvFrame {
+}
 
 pub struct OpencvFrameSource {
     source_name: Option<String>,
@@ -121,11 +128,10 @@ impl FrameSource for OpencvFrameSource {
         Ok(())
     }
 
-    fn next_frame(&mut self) -> FrameResult<Frame> {
+    fn next_frame(&mut self) -> FrameResult<Box<dyn Frame>> {
         let capture = self.capture.as_mut().ok_or_else(|| {
             FrameError::Capture("OpenCV capture not initialized. Call set_source first.".to_string())
         })?;
-
 
         let mut frame = opencv::core::Mat::default();
 
@@ -136,6 +142,14 @@ impl FrameSource for OpencvFrameSource {
         if frame.empty() {
             return Err(FrameError::Capture("Empty frame received".to_string()).into());
         }
+
+        let opencv_frame = OpenCvFrame { mat: frame };
+        Ok(Box::new(opencv_frame))
+    }
+}
+
+/*
+ // code to read from data.
 
         // Convert BGR (OpenCV default) to RGB
         let mut rgb_frame = opencv::core::Mat::default();
@@ -178,3 +192,4 @@ impl FrameSource for OpencvFrameSource {
         })
     }
 }
+    */

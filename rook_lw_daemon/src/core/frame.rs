@@ -1,17 +1,4 @@
-use image::{DynamicImage, ImageBuffer, Rgb};
-use std::time::SystemTime;
-
-pub type RgbImage = ImageBuffer<Rgb<u8>, Vec<u8>>;
-
-#[derive(Debug, Clone)]
-pub struct FrameMetadata {
-    pub timestamp: SystemTime,
-}
-
-#[derive(Debug, Clone)]
-pub struct Frame {
-    pub image: DynamicImage,
-    pub metadata: FrameMetadata,
+pub trait Frame {
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -33,7 +20,7 @@ pub trait FrameSource {
 
     fn stop(&mut self) -> FrameResult<()>;
 
-    fn next_frame(&mut self) -> FrameResult<Frame>;
+    fn next_frame(&mut self) -> FrameResult<Box<dyn Frame>>;
 
     fn list_sources(&mut self) -> FrameResult<Vec<String>>;
 

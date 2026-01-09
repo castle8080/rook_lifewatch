@@ -32,11 +32,11 @@ fn main() -> RookLWResult<()> {
     sleep(std::time::Duration::from_secs(1));
 
     let frame1 = frame_source.next_frame()?;
-    println!("Acquired first frame... {0:?}", frame1.metadata);
+    println!("Acquired first frame...");
     sleep(std::time::Duration::from_secs(1));
 
     let frame2 = frame_source.next_frame()?;
-    println!("Acquired second frame... {0:?}", frame2.metadata);
+    println!("Acquired second frame...");
     sleep(std::time::Duration::from_secs(1));
 
     println!("Complete...");
