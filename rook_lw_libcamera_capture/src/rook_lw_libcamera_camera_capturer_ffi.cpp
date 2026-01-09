@@ -193,18 +193,3 @@ extern "C" int32_t rook_lw_camera_capturer_acquire_frame(
         return static_cast<int32_t>(-EIO);
     }
 }
-
-extern "C" int32_t rook_lw_capture_10_frames(const char *output_dir)
-{
-    try {
-        return rook::lw_libcamera_capture::capture10Frames(output_dir);
-    }
-    catch (const rook::lw_libcamera_capture::CameraException &e) {
-        std::cerr << "CameraException caught in rook_lw_capture_10_frames: " << e.what() << std::endl;
-        return (e.code() < 0) ? e.code() : -EIO;
-    }
-    catch (...) {
-        std::cerr << "Unknown exception caught in rook_lw_capture_10_frames" << std::endl;
-        return -EIO;
-    }
-}

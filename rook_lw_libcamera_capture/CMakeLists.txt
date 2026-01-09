@@ -18,8 +18,11 @@ option(ROOK_LW_LIBCAMERA_ENABLE_WARNINGS "Enable common compiler warnings for th
 option(ROOK_LW_LIBCAMERA_WARNINGS_AS_ERRORS "Treat compiler warnings as errors (-Werror /WX)" ON)
 
 add_library(rook_lw_libcamera_capture STATIC
-  src/rook_lw_libcamera_capture_core.cpp
-  src/rook_lw_libcamera_capture_ffi.cpp
+  src/rook_lw_libcamera_camera_capturer.cpp
+  src/rook_lw_libcamera_camera_capture_request.cpp
+  src/rook_lw_libcamera_camera_capture_request_mapped_plane.cpp
+  src/rook_lw_libcamera_camera_capturer_ffi.cpp
+  src/rook_lw_libcamera_camera_capture_request_ffi.cpp
 )
 
 target_include_directories(rook_lw_libcamera_capture

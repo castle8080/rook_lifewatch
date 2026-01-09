@@ -5,8 +5,6 @@
 #include <chrono>
 #include <cstdio>
 #include <cstring>
-#include <filesystem>
-#include <fstream>
 #include <mutex>
 #include <string>
 #include <vector>
@@ -17,8 +15,6 @@
 #include <libcamera/framebuffer_allocator.h>
 #include <libcamera/request.h>
 #include <libcamera/stream.h>
-
-#include <sys/mman.h>
 
 namespace rook::lw_libcamera_capture {
 
@@ -148,6 +144,16 @@ void CameraCapturer::set_camera_source(const std::string &camera_name)
 	_camera->requestCompleted.connect(this, &CameraCapturer::on_request_completed);
 }
 
+std::string CameraCapturer::get_pixel_format() {
+	using namespace libcamera;
+
+	if (!_camera || !_config) {
+		throw CameraException("Camera source not set", -EINVAL);
+	}
+
+	StreamConfiguration &stream_config = _config->at(0);
+	return stream_config.pixelFormat.toString();
+}
 
 void CameraCapturer::start()
 {
@@ -267,7 +273,7 @@ std::shared_ptr<CaptureRequest> CameraCapturer::acquire_frame()
 	std::shared_ptr<CaptureRequest> capture_request =
 		std::make_shared<CaptureRequest>(this, request, frame_buffer_index);
 
-	capture_request->set_status(CaptureRequestPending);
+	capture_request->on_request_pending();
 
 	// Store the CaptureRequest associated with this request's cookie.
 	{
@@ -306,319 +312,6 @@ void CameraCapturer::on_request_completed(libcamera::Request *request) {
 			value->on_request_completed();
 		}
 	}
-}
-
-CaptureRequest::~CaptureRequest()
-{
-	std::cout << "CaptureRequest::~CaptureRequest()" << std::endl;
-
-	if (_capturer) {
-		_capturer->release_request_resources(this);
-	}
-}
-
-void CaptureRequest::set_status(CaptureRequestStatus status) {
-	std::lock_guard<std::mutex> lock(_mutex);
-	_status = status;
-	_cv.notify_all();
-}
-
-CaptureRequestStatus CaptureRequest::get_status() {
-	std::lock_guard<std::mutex> lock(_mutex);
-	return _status;
-}
-
-int CaptureRequest::get_frame_buffer_index() {
-	return _frame_buffer_index;
-}
-
-void CaptureRequest::on_request_completed()
-{
-	std::cout << "CaptureRequest::on_request_completed()" << std::endl;
-	set_status(CaptureRequestComplete);
-}
-
-void CaptureRequest::on_request_cancelled()
-{
-	std::cout << "CaptureRequest::on_request_cancelled()" << std::endl;
-	set_status(CaptureRequestComplete);
-}
-
-void CaptureRequest::wait_for_completion()
-{
-	std::unique_lock<std::mutex> lock(_mutex);
-	_cv.wait(lock, [this]() {
-		return _status == CaptureRequestComplete || _status == CaptureRequestCancelled;
-	});
-}
-
-namespace {
-
-int ensure_dir(const char *path)
-{
-	try {
-		std::filesystem::create_directories(std::filesystem::path(path));
-		return 0;
-	} catch (...) {
-		return -1;
-	}
-}
-
-struct MappedPlane {
-	void *addr = nullptr;
-	size_t length = 0;
-};
-
-MappedPlane map_plane(int fd, size_t length)
-{
-	MappedPlane mapped;
-	mapped.length = length;
-
-	void *addr = mmap(nullptr, length, PROT_READ, MAP_SHARED, fd, 0);
-	if (addr == MAP_FAILED)
-		return {};
-
-	mapped.addr = addr;
-	return mapped;
-}
-
-void unmap_plane(const MappedPlane &mapped)
-{
-	if (mapped.addr && mapped.length)
-		munmap(mapped.addr, mapped.length);
-}
-
-int write_frame_raw(const std::string &file_path, const libcamera::FrameBuffer &buffer)
-{
-	std::ofstream out(file_path, std::ios::binary);
-	if (!out)
-		return -1;
-
-	const auto &planes = buffer.planes();
-	for (unsigned i = 0; i < planes.size(); ++i) {
-		const auto &plane = planes[i];
-		const int fd = plane.fd.get();
-		const size_t length = plane.length;
-
-		MappedPlane mapped = map_plane(fd, length);
-		if (!mapped.addr)
-			return -1;
-
-		out.write(static_cast<const char *>(mapped.addr), static_cast<std::streamsize>(mapped.length));
-		unmap_plane(mapped);
-
-		if (!out)
-			return -1;
-	}
-
-	return 0;
-}
-
-struct CaptureContext {
-	std::mutex mtx;
-	std::condition_variable cv;
-	bool done = false;
-	int frames_written = 0;
-	int error = 0;
-
-	std::string output_dir;
-	libcamera::Stream *stream = nullptr;
-	libcamera::Camera *camera = nullptr;
-
-	void on_request_completed(libcamera::Request *request)
-	{
-		using namespace libcamera;
-		if (!request)
-			return;
-
-		if (request->status() == Request::RequestCancelled)
-			return;
-
-		const auto &buffers = request->buffers();
-		auto it = buffers.find(stream);
-		if (it == buffers.end()) {
-			std::lock_guard<std::mutex> lock(mtx);
-			error = -EIO;
-			done = true;
-			cv.notify_one();
-			return;
-		}
-
-		const FrameBuffer *buffer = it->second;
-
-		int local_index = 0;
-		{
-			std::lock_guard<std::mutex> lock(mtx);
-			local_index = frames_written;
-		}
-
-		char name[64];
-		std::snprintf(name, sizeof(name), "frame_%03d.raw", local_index);
-		std::filesystem::path out_path = std::filesystem::path(output_dir) / name;
-
-		if (write_frame_raw(out_path.string(), *buffer) != 0) {
-			std::lock_guard<std::mutex> lock(mtx);
-			error = -EIO;
-			done = true;
-			cv.notify_one();
-			return;
-		}
-
-		bool should_stop = false;
-		{
-			std::lock_guard<std::mutex> lock(mtx);
-			frames_written++;
-			should_stop = (frames_written >= 10);
-			if (should_stop)
-				done = true;
-		}
-
-		if (should_stop) {
-			cv.notify_one();
-			return;
-		}
-
-		request->reuse(Request::ReuseBuffers);
-		camera->queueRequest(request);
-	}
-};
-
-} // namespace
-
-int listCameras(std::vector<std::string> &out_ids)
-{
-	out_ids.clear();
-
-	using namespace libcamera;
-	CameraManager cm;
-	if (int ret = cm.start(); ret != 0)
-		return -EIO;
-
-	out_ids.reserve(cm.cameras().size());
-	for (const std::shared_ptr<Camera> &cam : cm.cameras())
-		out_ids.push_back(cam->id());
-
-	cm.stop();
-	return 0;
-}
-
-int capture10Frames(const char *output_dir)
-{
-	if (!output_dir || !*output_dir)
-		return -EINVAL;
-
-	if (ensure_dir(output_dir) != 0)
-		return -EIO;
-
-	using namespace libcamera;
-
-	CameraManager cm;
-	if (int ret = cm.start(); ret != 0)
-		return -EIO;
-
-	if (cm.cameras().empty()) {
-		cm.stop();
-		return -ENODEV;
-	}
-
-	std::shared_ptr<Camera> camera = cm.cameras().front();
-	if (int ret = camera->acquire(); ret != 0) {
-		cm.stop();
-		return -EACCES;
-	}
-
-	std::unique_ptr<CameraConfiguration> config = camera->generateConfiguration({ StreamRole::Viewfinder });
-	if (!config || config->empty()) {
-		camera->release();
-		cm.stop();
-		return -EINVAL;
-	}
-
-	StreamConfiguration &stream_config = config->at(0);
-	stream_config.pixelFormat = formats::YUV420;
-	stream_config.size.width = 640;
-	stream_config.size.height = 480;
-
-	if (config->validate() == CameraConfiguration::Invalid) {
-		camera->release();
-		cm.stop();
-		return -EINVAL;
-	}
-
-	if (int ret = camera->configure(config.get()); ret != 0) {
-		camera->release();
-		cm.stop();
-		return -EIO;
-	}
-
-	Stream *stream = stream_config.stream();
-	FrameBufferAllocator allocator(camera);
-	if (int ret = allocator.allocate(stream); ret < 0) {
-		camera->release();
-		cm.stop();
-		return -ENOMEM;
-	}
-
-	std::vector<std::unique_ptr<Request>> requests;
-	requests.reserve(allocator.buffers(stream).size());
-
-	for (const std::unique_ptr<FrameBuffer> &buffer : allocator.buffers(stream)) {
-		std::unique_ptr<Request> request = camera->createRequest();
-		if (!request)
-			continue;
-
-		if (request->addBuffer(stream, buffer.get()) != 0)
-			continue;
-
-		requests.push_back(std::move(request));
-	}
-
-	if (requests.empty()) {
-		allocator.free(stream);
-		camera->release();
-		cm.stop();
-		return -ENOMEM;
-	}
-
-	CaptureContext ctx;
-	ctx.output_dir = output_dir;
-	ctx.stream = stream;
-	ctx.camera = camera.get();
-
-	camera->requestCompleted.connect(&ctx, &CaptureContext::on_request_completed);
-
-	if (int ret = camera->start(); ret != 0) {
-		allocator.free(stream);
-		camera->release();
-		cm.stop();
-		return -EIO;
-	}
-
-	for (std::unique_ptr<Request> &req : requests) {
-		if (camera->queueRequest(req.get()) != 0) {
-			camera->stop();
-			allocator.free(stream);
-			camera->release();
-			cm.stop();
-			return -EIO;
-		}
-	}
-
-	{
-		std::unique_lock<std::mutex> lock(ctx.mtx);
-		ctx.cv.wait_for(lock, std::chrono::seconds(10), [&] { return ctx.done; });
-	}
-
-	camera->stop();
-	allocator.free(stream);
-	camera->release();
-	cm.stop();
-
-	if (ctx.error)
-		return ctx.error;
-	if (ctx.frames_written < 10)
-		return -ETIMEDOUT;
-	return 0;
 }
 
 } // namespace rook::lw_libcamera_capture
