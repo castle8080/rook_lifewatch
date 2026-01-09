@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdint.h>
+#include <stddef.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -8,6 +9,9 @@ extern "C" {
 
 // Opaque camera capturer handle (implemented in C++).
 typedef struct rook_lw_camera_capturer rook_lw_camera_capturer_t;
+
+// Opaque capture request handle (implemented in C++).
+typedef struct rook_lw_capture_request rook_lw_capture_request_t;
 
 // Creates a capturer instance and starts an internal CameraManager.
 //
@@ -36,7 +40,19 @@ int32_t rook_lw_camera_capturer_start(rook_lw_camera_capturer_t *capturer);
 
 int32_t rook_lw_camera_capturer_stop(rook_lw_camera_capturer_t *capturer);
 
-int32_t rook_lw_camera_capturer_acquire_frame(rook_lw_camera_capturer_t *capturer);
+rook_lw_capture_request_t *rook_lw_camera_capturer_acquire_frame(rook_lw_camera_capturer_t *capturer);
+
+void rook_lw_capture_request_destroy(rook_lw_capture_request_t *capture_request);
+
+int32_t rook_lw_capture_request_wait_for_completion(rook_lw_capture_request_t *capture_request);
+
+int32_t rook_lw_capture_request_get_plane_count(rook_lw_capture_request_t *capture_request,
+											   int *out_plane_count);
+
+int32_t rook_lw_capture_request_get_plane_data(rook_lw_capture_request_t *capture_request,
+											   int plane_index,
+											   void **plane_data,
+											   size_t *plane_length);
 
 #ifdef __cplusplus
 }

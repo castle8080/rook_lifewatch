@@ -10,6 +10,9 @@
 #include <vector>
 
 using rook::lw_libcamera_capture::CameraCapturer;
+using rook::lw_libcamera_capture::CaptureRequest;
+using rook::lw_libcamera_capture::CameraException;
+using rook::lw_libcamera_capture::CaptureRequestMappedPlane;
 
 // === FFI boundary rules (C / Rust callers) ===
 //
@@ -39,7 +42,11 @@ using rook::lw_libcamera_capture::CameraCapturer;
 //   non-success return as the error signal; stderr is best-effort.
 
 struct rook_lw_camera_capturer {
-	CameraCapturer impl;
+    CameraCapturer impl;
+};
+
+struct rook_lw_capture_request {
+	std::shared_ptr<CaptureRequest> impl;
 };
 
 extern "C" rook_lw_camera_capturer_t *rook_lw_camera_capturer_create(void)
@@ -173,23 +180,107 @@ extern "C" int32_t rook_lw_camera_capturer_stop(
     }
 }
 
-extern "C" int32_t rook_lw_camera_capturer_acquire_frame(
+extern "C" rook_lw_capture_request_t * rook_lw_camera_capturer_acquire_frame(
     rook_lw_camera_capturer_t *capturer)
 {
     if (!capturer) {
+        return nullptr;
+    }
+
+    try {
+        std::shared_ptr<CaptureRequest> impl = capturer->impl.acquire_frame();
+        if (!impl) {
+            return nullptr;
+        }
+        rook_lw_capture_request_t *request = new rook_lw_capture_request_t();
+        if (!request) {
+            return nullptr;
+        }
+        request->impl = impl;
+        return request;
+    }
+    catch (const rook::lw_libcamera_capture::CameraException &e) {
+        std::cerr << "CameraException caught in rook_lw_camera_capturer_acquire_frame: " << e.what() << std::endl;
+        return nullptr;
+    }
+    catch (...) {
+        std::cerr << "Unknown exception caught in rook_lw_camera_capturer_acquire_frame" << std::endl;
+        return nullptr;
+    }
+}
+
+extern "C" void rook_lw_capture_request_destroy(rook_lw_capture_request_t *request) {
+    if (!request) {
+        return;
+    }
+    delete request;
+}
+
+extern "C" int32_t rook_lw_capture_request_wait_for_completion(rook_lw_capture_request_t *capture_request) {
+    if (!capture_request) {
         return static_cast<int32_t>(-EINVAL);
     }
 
     try {
-        capturer->impl.acquire_frame();
+        capture_request->impl->wait_for_completion();
         return 0; // Success
     }
     catch (const rook::lw_libcamera_capture::CameraException &e) {
-        std::cerr << "CameraException caught in rook_lw_camera_capturer_acquire_frame: " << e.what() << std::endl;
+        std::cerr << "CameraException caught in rook_lw_capture_request_wait_for_completion: " << e.what() << std::endl;
         return (e.code() < 0) ? static_cast<int32_t>(e.code()) : static_cast<int32_t>(-EIO);
     }
     catch (...) {
-        std::cerr << "Unknown exception caught in rook_lw_camera_capturer_acquire_frame" << std::endl;
+        std::cerr << "Unknown exception caught in rook_lw_capture_request_wait_for_completion" << std::endl;
+        return static_cast<int32_t>(-EIO);
+    }
+}
+
+extern "C" int32_t rook_lw_capture_request_get_plane_count(
+    rook_lw_capture_request_t *capture_request,
+	int *out_plane_count)
+{
+    if (!capture_request || !out_plane_count) {
+        return static_cast<int32_t>(-EINVAL);
+    }
+    try {
+        int plane_count = capture_request->impl->get_plane_count();
+        *out_plane_count = plane_count;
+        return 0; // Success
+    }
+    catch (const rook::lw_libcamera_capture::CameraException &e) {
+        std::cerr << "CameraException caught in rook_lw_capture_request_get_plane_count: " << e.what() << std::endl;
+        return (e.code() < 0) ? static_cast<int32_t>(e.code()) : static_cast<int32_t>(-EIO);
+    }
+    catch (...) {
+        std::cerr << "Unknown exception caught in rook_lw_capture_request_get_plane_count" << std::endl;
+        return static_cast<int32_t>(-EIO);
+    }
+}
+
+extern "C" int32_t rook_lw_capture_request_get_plane_data(
+    rook_lw_capture_request_t *capture_request,
+    int plane_index,
+    void **plane_data,
+    size_t *plane_length)
+{
+    if (!capture_request || !plane_data || !plane_length) {
+        return static_cast<int32_t>(-EINVAL);
+    }
+    try {
+        CaptureRequestMappedPlane* plane = capture_request->impl->get_mapped_plane(plane_index);
+        if (!plane) {
+            return static_cast<int32_t>(-EINVAL);
+        }
+        *plane_data = plane->get_data();
+        *plane_length = plane->get_length();
+        return 0; // Success
+    }
+    catch (const rook::lw_libcamera_capture::CameraException &e) {
+        std::cerr << "CameraException caught in rook_lw_capture_request_get_plane_data: " << e.what() << std::endl;
+        return (e.code() < 0) ? static_cast<int32_t>(e.code()) : static_cast<int32_t>(-EIO);
+    }
+    catch (...) {
+        std::cerr << "Unknown exception caught in rook_lw_capture_request_get_plane_data" << std::endl;
         return static_cast<int32_t>(-EIO);
     }
 }

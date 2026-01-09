@@ -1,3 +1,4 @@
+use std::ffi::c_void;
 use std::os::raw::{c_char, c_int};
 
 #[repr(C)]
@@ -5,12 +6,12 @@ pub struct rook_lw_camera_capturer_t {
     _private: [u8; 0],
 }
 
-unsafe extern "C" {
-    #[allow(dead_code)]
-    pub unsafe fn rook_lw_list_cameras(out_ids: *mut *mut *mut c_char, out_count: *mut u32) -> c_int;
+#[repr(C)]
+pub struct rook_lw_capture_request_t {
+    _private: [u8; 0],
+}
 
-    #[allow(dead_code)]
-    pub unsafe fn rook_lw_free_camera_id_list(ids: *mut *mut c_char, count: u32);
+unsafe extern "C" {
 
     pub unsafe fn rook_lw_camera_capturer_create() -> *mut rook_lw_camera_capturer_t;
 
@@ -40,5 +41,23 @@ unsafe extern "C" {
 
     pub unsafe fn rook_lw_camera_capturer_acquire_frame(
         capturer: *mut rook_lw_camera_capturer_t
+    ) -> *mut rook_lw_capture_request_t;
+
+    pub unsafe fn rook_lw_capture_request_destroy(capture_request: *mut rook_lw_capture_request_t);
+
+    pub unsafe fn rook_lw_capture_request_wait_for_completion(
+        capture_request: *mut rook_lw_capture_request_t,
+    ) -> i32;
+
+    pub unsafe fn rook_lw_capture_request_get_plane_count(
+        capture_request: *mut rook_lw_capture_request_t,
+        out_plane_count: *mut c_int,
+    ) -> i32;
+
+    pub unsafe fn rook_lw_capture_request_get_plane_data(
+        capture_request: *mut rook_lw_capture_request_t,
+        plane_index: c_int,
+        plane_data: *mut *mut c_void,
+        plane_length: *mut usize,
     ) -> i32;
 }

@@ -103,10 +103,13 @@ impl FrameSource for LibCameraFrameSource {
 
         unsafe {
             let result = ffi::rook_lw_camera_capturer_acquire_frame(self.inner.as_ptr());
-            if result != 0 {
-                return Err(FrameError::Capture("Failed to acquire frame".to_string()));
+            if result.is_null() {
+                return Err(FrameError::ProcessingError("Failed to acquire frame".to_string()));
             }
         }
+
+        // TODO: need to change Frame and have it so a different impl of Frame can be returned
+        // I want to be able to return a handle specific to libcamera.
 
         let img = DynamicImage::new_rgb8(1, 1);
         Ok(Frame {

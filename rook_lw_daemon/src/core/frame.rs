@@ -22,6 +22,8 @@ pub enum FrameError {
     NoImplementationAvailable,
     #[error("failed to initialize frame source: {0}")]
     InitializationFailed(String),
+    #[error("processing error: {0}")]
+    ProcessingError(String),
 }
 
 pub type FrameResult<T> = Result<T, FrameError>;
