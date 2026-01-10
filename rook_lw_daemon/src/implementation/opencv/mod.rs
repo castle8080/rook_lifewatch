@@ -27,6 +27,22 @@ impl Frame for OpenCvFrame {
 
         Ok(data)
     }
+
+    fn get_pixel_format(&self) -> FrameResult<u32> {
+        // OpenCV does not expose pixel format directly.
+        // For simplicity, we assume BGR format (which is common in OpenCV).
+        // In a real implementation, you would map OpenCV's Mat type to a pixel format.
+        const PIXEL_FORMAT_BGR: u32 = 0x00000001; // Placeholder value
+        Ok(PIXEL_FORMAT_BGR)
+    }
+
+    fn get_width(&self) -> FrameResult<usize> {
+        Ok(self.mat.cols() as usize)
+    }
+
+    fn get_height(&self) -> FrameResult<usize> {
+        Ok(self.mat.rows() as usize)
+    }
 }
 
 pub struct OpencvFrameSource {

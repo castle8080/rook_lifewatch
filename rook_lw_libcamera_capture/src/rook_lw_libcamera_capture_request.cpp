@@ -28,7 +28,6 @@ CaptureRequest::CaptureRequest(
 
 CaptureRequest::~CaptureRequest()
 {
-	std::cout << "CaptureRequest::~CaptureRequest()" << std::endl;
 	std::lock_guard<std::mutex> lock(_mutex);
 	_frame_buffer = nullptr;
 
@@ -57,8 +56,6 @@ void CaptureRequest::on_request_completed()
 {
 	using namespace libcamera;
 
-	std::cout << "CaptureRequest::on_request_completed()" << std::endl;
-
 	std::lock_guard<std::mutex> lock(_mutex);
 	_status = CaptureRequestComplete;
 
@@ -79,7 +76,6 @@ void CaptureRequest::on_request_completed()
 
 void CaptureRequest::on_request_cancelled()
 {
-	std::cout << "CaptureRequest::on_request_cancelled()" << std::endl;
 	std::lock_guard<std::mutex> lock(_mutex);
 	_status = CaptureRequestCancelled;
 	clear_mapped_planes();
@@ -102,7 +98,6 @@ int CaptureRequest::get_plane_count()
     }
 
     auto &planes = _frame_buffer->planes();
-
 
     return static_cast<int>(planes.size());
 }
@@ -142,6 +137,5 @@ void CaptureRequest::clear_mapped_planes()
 	}
 	_mapped_planes.clear();
 }
-
 
 } // namespace rook::lw_libcamera_capture

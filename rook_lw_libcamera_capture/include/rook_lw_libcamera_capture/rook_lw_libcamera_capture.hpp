@@ -62,6 +62,10 @@ public:
 
 	uint32_t get_pixel_format();
 
+	uint32_t get_width();
+
+	uint32_t get_height();
+
 private:
 	friend class CaptureRequest;
 

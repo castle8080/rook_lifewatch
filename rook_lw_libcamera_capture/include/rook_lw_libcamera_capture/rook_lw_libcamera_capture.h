@@ -49,6 +49,10 @@ int32_t rook_lw_camera_capturer_stop(rook_lw_camera_capturer_t *capturer);
 
 int32_t rook_lw_camera_capturer_get_pixel_format(rook_lw_camera_capturer_t *capturer, uint32_t *out_pixel_format);
 
+int32_t rook_lw_camera_capturer_get_width(rook_lw_camera_capturer_t *capturer, uint32_t *out_width);
+
+int32_t rook_lw_camera_capturer_get_height(rook_lw_camera_capturer_t *capturer, uint32_t *out_height);
+
 rook_lw_capture_request_t *rook_lw_camera_capturer_acquire_frame(rook_lw_camera_capturer_t *capturer);
 
 void rook_lw_capture_request_destroy(rook_lw_capture_request_t *capture_request);

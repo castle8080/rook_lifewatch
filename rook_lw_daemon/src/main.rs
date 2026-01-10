@@ -4,7 +4,8 @@ use std::thread::sleep;
 
 use rook_lw_daemon::error::RookLWResult;
 use rook_lw_daemon::implementation::factory::FrameSourceFactory;
-use rook_lw_daemon::core::frame::fourcc_to_string;
+use rook_lw_daemon::image::fourcc::fourcc_to_string;
+use rook_lw_daemon::image::yplane;
 
 fn main() -> RookLWResult<()> {
 
@@ -44,26 +45,37 @@ fn main() -> RookLWResult<()> {
 
     sleep(std::time::Duration::from_secs(1));
 
-    for run_id in 0..10 {
+    for run_id in 0..100 {
         let frame1 = frame_source.next_frame()?;
+        let yplane1 = yplane::YPlane::from_frame(&*frame1)?;
+
         let plane_count1 = frame1.get_plane_count()?;
         let plane_data1 = frame1.get_plane_data(0)?;
-        println!("Acquired first frame: plane_count={}, plane_data_len={}", plane_count1, plane_data1.len());
+        //println!("Acquired first frame: plane_count={}, plane_data_len={}", plane_count1, plane_data1.len());
         
-        let image_path1 = path::Path::new(image_dump_dir).join(format!("frame-{}-{}.jpg", run_id, 1)); 
-        fs::write(&image_path1, plane_data1)?;
-
-        sleep(std::time::Duration::from_millis(100));
+        sleep(std::time::Duration::from_millis(50));
 
         let _frame2 = frame_source.next_frame()?;
+        let yplane2 = yplane::YPlane::from_frame(&*_frame2)?;
+
         let plane_count2 = _frame2.get_plane_count()?;
         let plane_data2 = _frame2.get_plane_data(0)?;
-        println!("Acquired second frame: plane_count={}, plane_data_len={}", plane_count2, plane_data2.len());
+        //println!("Acquired second frame: plane_count={}, plane_data_len={}", plane_count2, plane_data2.len());
         
-        let image_path2 = path::Path::new(image_dump_dir).join(format!("frame-{}-{}.jpg", run_id, 2)); 
-        fs::write(&image_path2, plane_data2)?;
+        let score = yplane::normalized_mean_abs_diff(&yplane1, &yplane2, 1)?;
+        println!("Luma difference score between frames: {}", score);
 
-        sleep(std::time::Duration::from_millis(1000 * 5));
+        // Write when difference is significant
+        if score >= 0.04 {
+            println!("Writing images for run_id {}", run_id);
+            let image_path1 = path::Path::new(image_dump_dir).join(format!("frame-{}-{}.jpg", run_id, 1)); 
+            fs::write(&image_path1, plane_data1)?;
+
+            let image_path2 = path::Path::new(image_dump_dir).join(format!("frame-{}-{}.jpg", run_id, 2)); 
+            fs::write(&image_path2, plane_data2)?;
+        }
+
+        sleep(std::time::Duration::from_millis(500));
     }
 
     println!("Complete...");

@@ -13,9 +13,18 @@ pub enum FrameError {
 
 pub type FrameResult<T> = Result<T, FrameError>;
 
+impl From<image::ImageError> for FrameError {
+    fn from(err: image::ImageError) -> Self {
+        FrameError::ProcessingError(format!("image error: {err}"))
+    }
+}
+
 pub trait Frame {
     fn get_plane_count(&self) -> FrameResult<usize>;
     fn get_plane_data(&self, plane_index: usize) -> FrameResult<&[u8]>;
+    fn get_pixel_format(&self) -> FrameResult<u32>;
+    fn get_width(&self) -> FrameResult<usize>;
+    fn get_height(&self) -> FrameResult<usize>;
 }
 
 pub trait FrameSource {
@@ -40,47 +49,4 @@ pub trait FrameSource {
     fn next_frame(&self) -> FrameResult<Box<dyn Frame + '_>>;
 
     fn get_pixel_format(&self) -> FrameResult<u32>;
-}
-
-/// Converts a FourCC stored in a `u32` into a 4-character `String`.
-///
-/// This assumes the common Linux convention where a FourCC is packed as:
-///
-/// ```text
-/// code = a | (b << 8) | (c << 16) | (d << 24)
-/// ```
-///
-/// (i.e. the byte sequence is interpreted as little-endian).
-///
-/// Non-printable bytes are replaced with `?` so the returned string is always
-/// exactly 4 characters long.
-pub fn fourcc_to_string(code: u32) -> String {
-    let bytes = code.to_le_bytes();
-    bytes
-        .into_iter()
-        .map(|b| {
-            if b.is_ascii_graphic() || b == b' ' {
-                b as char
-            } else {
-                '?'
-            }
-        })
-        .collect()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::fourcc_to_string;
-
-    #[test]
-    fn fourcc_to_string_basic() {
-        let code = u32::from_le_bytes(*b"YUYV");
-        assert_eq!(fourcc_to_string(code), "YUYV");
-    }
-
-    #[test]
-    fn fourcc_to_string_non_printable_replaced() {
-        let code = u32::from_le_bytes([0, b'A', 0x7F, b' ']);
-        assert_eq!(fourcc_to_string(code), "?A? ");
-    }
 }

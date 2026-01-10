@@ -157,6 +157,45 @@ extern "C" int32_t rook_lw_camera_capturer_get_pixel_format(rook_lw_camera_captu
     }
 }
 
+
+extern "C" int32_t rook_lw_camera_capturer_get_width(rook_lw_camera_capturer_t *capturer, uint32_t *out_width) {
+    if (!capturer) {
+        return static_cast<int32_t>(-EINVAL);
+    }
+
+    try {
+        *out_width = capturer->impl.get_width();
+        return 0;
+    }
+    catch (const rook::lw_libcamera_capture::CameraException &e) {
+        std::cerr << "CameraException caught in rook_lw_camera_capturer_get_width: " << e.what() << std::endl;
+        return (e.code() < 0) ? static_cast<int32_t>(e.code()) : static_cast<int32_t>(-EIO);
+    }
+    catch (...) {
+        std::cerr << "Unknown exception caught in rook_lw_camera_capturer_get_width" << std::endl;
+        return static_cast<int32_t>(-EIO);
+    }
+}
+
+extern "C" int32_t rook_lw_camera_capturer_get_height(rook_lw_camera_capturer_t *capturer, uint32_t *out_height) {
+    if (!capturer) {
+        return static_cast<int32_t>(-EINVAL);
+    }
+
+    try {
+        *out_height = capturer->impl.get_height();
+        return 0;
+    }
+    catch (const rook::lw_libcamera_capture::CameraException &e) {
+        std::cerr << "CameraException caught in rook_lw_camera_capturer_get_height: " << e.what() << std::endl;
+        return (e.code() < 0) ? static_cast<int32_t>(e.code()) : static_cast<int32_t>(-EIO);
+    }
+    catch (...) {
+        std::cerr << "Unknown exception caught in rook_lw_camera_capturer_get_height" << std::endl;
+        return static_cast<int32_t>(-EIO);
+    }
+}
+
 extern "C" int32_t rook_lw_camera_capturer_start(
     rook_lw_camera_capturer_t *capturer)
 {

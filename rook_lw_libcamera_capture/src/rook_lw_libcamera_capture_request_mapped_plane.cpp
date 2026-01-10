@@ -41,7 +41,6 @@ CaptureRequestMappedPlane::CaptureRequestMappedPlane(const libcamera::FrameBuffe
 
 CaptureRequestMappedPlane::~CaptureRequestMappedPlane()
 {
-    std::cout << "CaptureRequestMappedPlane::~CaptureRequestMappedPlane()" << std::endl;
     if (_data) {
         munmap(_data, _length);
     }

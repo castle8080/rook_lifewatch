@@ -62,7 +62,6 @@ void CameraCapturer::reset_camera()
 	if (_camera) {
 		if (_is_camera_started) {
 			try {
-				std::cout << "Stopping camera before reset" << std::endl;
 				_camera->stop();
 				_is_camera_started = false;
 			} catch (...) {
@@ -84,30 +83,22 @@ void CameraCapturer::set_camera_source(const std::string &camera_name)
 		throw CameraException("Camera source already set", -EINVAL);
 	}
 
-	std::cout << "Setting camera source to: " << camera_name << std::endl;
-
 	_camera = get_camera(camera_name, _camera_manager);
 
 	if (!_camera) {
 		throw CameraException("Camera with specified name not found", -ENODEV);
 	}
 
-	std::cout << "Acquiring camera: " << _camera->id() << std::endl;
-
 	if (int ret = _camera->acquire(); ret != 0) {
 		reset_camera();
 		throw CameraException("Failed to acquire camera", -EACCES);
 	}
-
-	std::cout << "Creating FrameBufferAllocator" << std::endl;
 
 	_allocator = std::make_shared<FrameBufferAllocator>(_camera);
 	if (!_allocator) {
 		reset_camera();
 		throw CameraException("Failed to create FrameBufferAllocator", -ENOMEM);
 	}
-
-	std::cout << "Configuring camera" << std::endl;
 
 	_config = _camera->generateConfiguration({ StreamRole::Viewfinder });
 	if (!_config || _config->empty()) {
@@ -125,15 +116,12 @@ void CameraCapturer::set_camera_source(const std::string &camera_name)
 		throw CameraException("Invalid camera configuration", -EINVAL);
 	}
 
-	std::cout << "Pixel format: " << stream_config.pixelFormat << std::endl;
-
 	if (int ret = _camera->configure(_config.get()); ret != 0) {
 		reset_camera();
 		throw CameraException("Failed to configure camera", -EIO);
 	}
 
 	// Allocate frame buffers for the configured stream.
-	std::cout << "Allocating frame buffers" << std::endl;
 	Stream *stream = stream_config.stream();
 	if (int ret = _allocator->allocate(stream); ret < 0) {
 		reset_camera();
@@ -154,6 +142,30 @@ uint32_t CameraCapturer::get_pixel_format() {
 	StreamConfiguration &stream_config = _config->at(0);
 
 	return stream_config.pixelFormat;
+}
+
+uint32_t CameraCapturer::get_width() {
+	using namespace libcamera;
+
+	if (!_camera || !_config) {
+		throw CameraException("Camera source not set", -EINVAL);
+	}
+
+	StreamConfiguration &stream_config = _config->at(0);
+
+	return stream_config.size.width;
+}
+
+uint32_t CameraCapturer::get_height() {
+	using namespace libcamera;
+
+	if (!_camera || !_config) {
+		throw CameraException("Camera source not set", -EINVAL);
+	}
+
+	StreamConfiguration &stream_config = _config->at(0);
+
+	return stream_config.size.height;
 }
 
 void CameraCapturer::start()
@@ -246,8 +258,6 @@ std::shared_ptr<CaptureRequest> CameraCapturer::acquire_frame()
 		throw CameraException("Camera not started", -EINVAL);
 	}
 
-	std::cout << "Acquiring frame:" << __FILE__ << ":" << __LINE__ << std::endl;
-
 	Stream *stream = _config->at(0).stream();
 
 	// TODO: might not assume that buffer 0 is free.
@@ -282,23 +292,13 @@ std::shared_ptr<CaptureRequest> CameraCapturer::acquire_frame()
 		_requests[request->cookie()] = capture_request;
 	}
 
-	std::cout << "Acquiring frame:" << __FILE__ << ":" << __LINE__ << std::endl;
-
 	return capture_request;
 }
 
 void CameraCapturer::on_request_completed(libcamera::Request *request) {
-	std::cout << "on_request_completed:" << __FILE__ << ":" << __LINE__ << std::endl;
 	if (!request) {
 		return;
 	}
-
-	std::cout
-		<< "Request completed with status: "
-		<< request->status()
-		<< " sequence->" << request->sequence()
-		<< " cookie->" << request->cookie()
-		<< std::endl;
 
 	// Find the associated CaptureRequest and notify it.
 	auto it = _requests.find(request->cookie());
