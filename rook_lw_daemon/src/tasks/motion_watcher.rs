@@ -7,6 +7,9 @@ use crate::image::frame::{FrameSource, FrameResult};
 use crate::image::frame_slot::FrameSlot;
 use crate::image::yplane;
 
+use tracing::info;
+use uuid::Uuid;
+
 pub struct MotionWatcher {
     frame_source: Box<dyn FrameSource>,
     motion_detect_interval: Duration,
@@ -58,30 +61,55 @@ impl MotionWatcher {
         Ok(())
     }
 
-    fn on_captured_image(&mut self, jpeg_bytes: Vec<u8>, _motion_score: f32) -> FrameResult<()> {
+    fn on_captured_image(
+        &mut self, jpeg_bytes: Vec<u8>,
+        motion_score: f32,
+        capture_event_id: Uuid,
+        capture_index: u32) -> FrameResult<()>
+    {
         // Placeholder: In a real implementation, save to disk, send over network, etc.
-        println!("Captured image of size {} bytes", jpeg_bytes.len());
+        info!(
+            capture_event_id = %capture_event_id,
+            capture_index,
+            motion_score,
+            bytes = jpeg_bytes.len(),
+            "Captured image"
+        );
 
         // This is temporary.
         let image_dump_dir = "var/images";
 
         fs::create_dir_all(image_dump_dir)?;
 
-        let timestamp = chrono::Utc::now().format("%Y%m%d_%H%M%S%.3f");
-        let image_path1 = path::Path::new(image_dump_dir).join(format!("{}.jpg", timestamp));
+        let now = chrono::Local::now();
+        let day_dir = now.format("%Y-%m-%d").to_string();
+        let timestamp = now.format("%Y%m%d_%H%M%S%.3f").to_string();
+        let day_path = path::Path::new(image_dump_dir).join(day_dir);
+        fs::create_dir_all(&day_path)?;
+        let image_filename = format!(
+            "{}_{}_{}_{}.jpg",
+            timestamp, capture_event_id, capture_index, motion_score
+        );
+        let image_path1 = day_path.join(image_filename);
 
         fs::write(&image_path1, jpeg_bytes)?;
         Ok(())
     }
 
     fn capture_images(&mut self, motion_score: f32) -> FrameResult<()> {
-        println!("Motion detected! motion_score: {} - Capturing {} frames...", motion_score, self.capture_count);
-        for _capture_index in 0..self.capture_count {
+		let capture_event_id = Uuid::new_v4();
+        
+		info!(
+			"Motion detected! motion_score: {} - Capturing {} frames...",
+			motion_score,
+			self.capture_count
+		);
+        for capture_index in 0..self.capture_count {
             let jpeg_bytes = {
                 let frame = self.frame_source.next_frame()?;
                 frame_to_jpeg_bytes(&*frame)?
             };
-            self.on_captured_image(jpeg_bytes, motion_score)?;
+			self.on_captured_image(jpeg_bytes, motion_score, capture_event_id, capture_index)?;
             sleep(self.capture_interval);
         }
         Ok(())
