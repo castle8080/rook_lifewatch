@@ -1,4 +1,4 @@
-use crate::core::frame::{Frame, FrameError, FrameSource, FrameResult};
+use super::frame::{Frame, FrameError, FrameSource, FrameResult};
 use opencv::prelude::*;
 use opencv::videoio::{VideoCapture, VideoCaptureTrait, CAP_ANY};
 use std::cell::RefCell;

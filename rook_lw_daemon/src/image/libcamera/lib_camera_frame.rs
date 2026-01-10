@@ -1,5 +1,5 @@
 
-use crate::core::frame::{Frame, FrameError, FrameResult};
+use super::super::frame::{Frame, FrameError, FrameResult};
 use std::os::raw::c_int;
 use std::ffi::c_void;
 use std::ptr::NonNull;

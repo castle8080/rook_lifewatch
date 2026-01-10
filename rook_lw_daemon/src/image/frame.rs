@@ -19,6 +19,12 @@ impl From<image::ImageError> for FrameError {
     }
 }
 
+impl From<std::io::Error> for FrameError {
+    fn from(err: std::io::Error) -> Self {
+        FrameError::ProcessingError(format!("io error: {err}"))
+    }
+}
+
 pub trait Frame {
     fn get_plane_count(&self) -> FrameResult<usize>;
     fn get_plane_data(&self, plane_index: usize) -> FrameResult<&[u8]>;

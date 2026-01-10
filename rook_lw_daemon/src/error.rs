@@ -1,7 +1,6 @@
 use thiserror::Error;
 
-use crate::core::frame::FrameError;
-use crate::core::pipeline::ProcessingError;
+use crate::image::frame::FrameError;
 
 pub type RookLWResult<T> = Result<T, RookLWError>;
 
@@ -15,9 +14,6 @@ pub enum RookLWError {
 
     #[error("frame error: {0}")]
     Frame(#[from] FrameError),
-
-    #[error("processing error: {0}")]
-    Processing(#[from] ProcessingError),
 
     #[error("configuration error: {0}")]
     Config(String),

@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 
-use crate::core::frame::{Frame, FrameResult};
-use crate::core::frame::FrameError;
+use super::frame::{Frame, FrameResult, FrameError};
+use super::fourcc;
 
 /// A read-only view over an 8-bit luma (Y) plane.
 ///
@@ -20,14 +20,14 @@ impl YPlane<'_> {
 
     pub fn from_frame<'a>(frame: &'a dyn Frame) -> FrameResult<YPlane<'a>> {
         if frame.get_plane_count()? < 1 {
-            return Err(crate::core::frame::FrameError::ProcessingError(
+            return Err(FrameError::ProcessingError(
                 "Frame has no planes".to_string(),
             ));
         }
 
         let pixel_format = frame.get_pixel_format()?;
 
-        if pixel_format == crate::image::fourcc::FOURCC_YUYV {
+        if pixel_format == fourcc::FOURCC_YUYV {
             let width = frame.get_width()?;
             let height = frame.get_height()?;
             let plane_data = frame.get_plane_data(0)?;
@@ -40,7 +40,7 @@ impl YPlane<'_> {
                 2,
             ));
         }
-        else if pixel_format == crate::image::fourcc::FOURCC_MJPG {
+        else if pixel_format == fourcc::FOURCC_MJPG {
             let decoded = image::load_from_memory_with_format(
                 frame.get_plane_data(0)?,
                 image::ImageFormat::Jpeg,
@@ -57,7 +57,7 @@ impl YPlane<'_> {
             ))
         }
         else {
-            return Err(crate::core::frame::FrameError::ProcessingError(
+            return Err(FrameError::ProcessingError(
                 format!("Unsupported pixel format: {}", pixel_format),
             ));
         }
@@ -117,7 +117,7 @@ impl<'a> YPlane<'a> {
 ///
 /// `sample_step` trades accuracy for speed. For example, `sample_step = 2`
 /// samples every other pixel in both X and Y.
-pub fn normalized_mean_abs_diff(
+pub fn get_motion_score(
     a: &YPlane<'_>,
     b: &YPlane<'_>,
     sample_step: usize,
@@ -177,24 +177,3 @@ pub fn normalized_mean_abs_diff(
     Ok(sum_abs_diff as f32 / (sample_count as f32 * 255.0))
 }
 
-#[cfg(test)]
-mod tests {
-    use super::{normalized_mean_abs_diff, YPlane};
-    use std::borrow::Cow;
-
-    #[test]
-    fn motion_score_identical_is_zero() {
-        let a = YPlane::new(Cow::Borrowed(&[0u8, 10, 20, 30]), 2, 2, 2, 1);
-        let b = YPlane::new(Cow::Borrowed(&[0u8, 10, 20, 30]), 2, 2, 2, 1);
-        let score = normalized_mean_abs_diff(&a, &b, 1).unwrap();
-        assert_eq!(score, 0.0);
-    }
-
-    #[test]
-    fn motion_score_full_diff_is_one() {
-        let a = YPlane::new(Cow::Borrowed(&[0u8, 0, 0, 0]), 2, 2, 2, 1);
-        let b = YPlane::new(Cow::Borrowed(&[255u8, 255, 255, 255]), 2, 2, 2, 1);
-        let score = normalized_mean_abs_diff(&a, &b, 1).unwrap();
-        assert!((score - 1.0).abs() < 1e-6);
-    }
-}

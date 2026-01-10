@@ -1,4 +1,4 @@
-use crate::core::frame::{FrameError, FrameResult, FrameSource};
+use super::frame::{FrameError, FrameResult, FrameSource};
 
 pub struct FrameSourceFactory;
 
@@ -44,7 +44,7 @@ impl FrameSourceFactory {
 fn try_create_libcamera_source() -> FrameResult<Box<dyn FrameSource>> {
     #[cfg(feature = "libcamera")]
     {
-        use crate::implementation::libcamera::LibCameraFrameSource;
+        use super::libcamera::LibCameraFrameSource;
         return Ok(Box::new(LibCameraFrameSource::new()?));
     }
     #[cfg(not(feature = "libcamera"))]
@@ -58,7 +58,7 @@ fn try_create_libcamera_source() -> FrameResult<Box<dyn FrameSource>> {
 fn try_create_opencv_source() -> FrameResult<Box<dyn FrameSource>> {
     #[cfg(feature = "opencv")]
     {
-        use crate::implementation::opencv::OpencvFrameSource;
+        use super::opencv::OpencvFrameSource;
         return Ok(Box::new(OpencvFrameSource::new()?));
     }
     #[cfg(not(feature = "opencv"))]

@@ -1,7 +1,7 @@
-use crate::core::frame::{Frame, FrameError, FrameSource, FrameResult};
 use std::ffi::CStr;
 use std::ptr::NonNull;
 
+use super::super::frame::{Frame, FrameError, FrameSource, FrameResult};
 use super::ffi;
 use super::lib_camera_frame::LibCameraFrame;
 use super::capture_request_status::CaptureRequestStatus;
