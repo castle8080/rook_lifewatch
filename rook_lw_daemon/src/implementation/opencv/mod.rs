@@ -189,50 +189,36 @@ impl FrameSource for OpencvFrameSource {
         const PIXEL_FORMAT_BGR: u32 = 0x00000001; // Placeholder value
         Ok(PIXEL_FORMAT_BGR)
     }
-}
 
-/*
- // code to read from data.
+    fn get_width(&self) -> FrameResult<usize> {
+        let capture_ref = self.capture.borrow();
+        let capture = capture_ref.as_ref().ok_or_else(|| {
+            FrameError::Capture("OpenCV capture not initialized. Call set_source first.".to_string())
+        })?;
 
-        // Convert BGR (OpenCV default) to RGB
-        let mut rgb_frame = opencv::core::Mat::default();
-        opencv::imgproc::cvt_color(
-            &frame,
-            &mut rgb_frame,
-            opencv::imgproc::COLOR_BGR2RGB,
-            0,
-        )
-        .map_err(|e| FrameError::Capture(format!("Failed to convert color: {}", e)))?;
+        let width = capture
+            .get(opencv::videoio::CAP_PROP_FRAME_WIDTH)
+            .map_err(|e| FrameError::ProcessingError(format!("Failed to get width: {}", e)))?;
 
-        // Get frame dimensions
-        let rows = rgb_frame.rows();
-        let cols = rgb_frame.cols();
-
-        if rows <= 0 || cols <= 0 {
-            return Err(FrameError::Capture(format!(
-                "Invalid frame dimensions: {}x{}",
-                cols, rows
-            )));
+        if width <= 0.0 {
+            return Err(FrameError::ProcessingError("Failed to get width".to_string()));
         }
+        Ok(width as usize)
+    }
 
-        // Convert to image crate format
-        let data = rgb_frame
-            .data_bytes()
-            .map_err(|e| FrameError::Capture(format!("Failed to get frame data: {}", e)))?;
+    fn get_height(&self) -> FrameResult<usize> {
+        let capture_ref = self.capture.borrow();
+        let capture = capture_ref.as_ref().ok_or_else(|| {
+            FrameError::Capture("OpenCV capture not initialized. Call set_source first.".to_string())
+        })?;
 
-        let img_buffer = ImageBuffer::<Rgb<u8>, _>::from_raw(
-            cols as u32,
-            rows as u32,
-            data.to_vec(),
-        )
-        .ok_or_else(|| FrameError::Capture("Failed to create image buffer".to_string()))?;
+        let height = capture
+            .get(opencv::videoio::CAP_PROP_FRAME_HEIGHT)
+            .map_err(|e| FrameError::ProcessingError(format!("Failed to get height: {}", e)))?;
 
-        Ok(Frame {
-            image: DynamicImage::ImageRgb8(img_buffer),
-            metadata: FrameMetadata {
-                timestamp: SystemTime::now(),
-            },
-        })
+        if height <= 0.0 {
+            return Err(FrameError::ProcessingError("Failed to get height".to_string()));
+        }
+        Ok(height as usize)
     }
 }
-    */

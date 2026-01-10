@@ -175,4 +175,12 @@ impl FrameSource for LibCameraFrameSource {
             Ok(pixel_format)
         }
     }
+
+    fn get_width(&self) -> FrameResult<usize> {
+        Ok(self.get_width()? as usize)
+    }
+
+    fn get_height(&self) -> FrameResult<usize> {
+        Ok(self.get_height()? as usize)
+    }
 }

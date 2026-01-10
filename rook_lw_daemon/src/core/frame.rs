@@ -49,4 +49,6 @@ pub trait FrameSource {
     fn next_frame(&self) -> FrameResult<Box<dyn Frame + '_>>;
 
     fn get_pixel_format(&self) -> FrameResult<u32>;
+    fn get_width(&self) -> FrameResult<usize>;
+    fn get_height(&self) -> FrameResult<usize>;
 }

@@ -39,6 +39,8 @@ fn main() -> RookLWResult<()> {
         return Err(rook_lw_daemon::error::RookLWError::Camera(format!("Expected MJPG pixel format, got {}", pixel_format)));
     }
 
+    println!("Frame dimensions: {}x{}", frame_source.get_width()?, frame_source.get_height()?);
+
     println!("Starting frame source...");
 
     frame_source.start()?;

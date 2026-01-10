@@ -100,16 +100,11 @@ void CameraCapturer::set_camera_source(const std::string &camera_name)
 		throw CameraException("Failed to create FrameBufferAllocator", -ENOMEM);
 	}
 
-	_config = _camera->generateConfiguration({ StreamRole::Viewfinder });
+	_config = _camera->generateConfiguration({ StreamRole::StillCapture });
 	if (!_config || _config->empty()) {
 		reset_camera();
 		throw CameraException("Failed to generate camera configuration", -EINVAL);
 	}
-
-	StreamConfiguration &stream_config = _config->at(0);
-	stream_config.pixelFormat = formats::BGR888;
-	stream_config.size.width = 640;
-	stream_config.size.height = 480;
 
 	if (_config->validate() == CameraConfiguration::Invalid) {
 		reset_camera();
@@ -120,6 +115,8 @@ void CameraCapturer::set_camera_source(const std::string &camera_name)
 		reset_camera();
 		throw CameraException("Failed to configure camera", -EIO);
 	}
+
+	StreamConfiguration &stream_config = _config->at(0);
 
 	// Allocate frame buffers for the configured stream.
 	Stream *stream = stream_config.stream();
@@ -276,21 +273,25 @@ std::shared_ptr<CaptureRequest> CameraCapturer::acquire_frame()
 		throw CameraException("Failed to add buffer to request", -EIO);
 	}
 
-	if (_camera->queueRequest(request.get()) != 0) {
-		return_frame_buffer_index(frame_buffer_index);
-		throw CameraException("Failed to queue request", -EIO);
-	}
-
 	std::shared_ptr<CaptureRequest> capture_request =
 		std::make_shared<CaptureRequest>(this, request, frame_buffer_index);
-
-	capture_request->on_request_pending();
 
 	// Store the CaptureRequest associated with this request's cookie.
 	{
 		std::lock_guard<std::mutex> lock(_mutex);
 		_requests[request->cookie()] = capture_request;
 	}
+
+	if (_camera->queueRequest(request.get()) != 0) {
+		return_frame_buffer_index(frame_buffer_index);
+		{
+			std::lock_guard<std::mutex> lock(_mutex);
+			_requests.erase(request->cookie());
+		}
+		throw CameraException("Failed to queue request", -EIO);
+	}
+
+	capture_request->on_request_pending();
 
 	return capture_request;
 }
