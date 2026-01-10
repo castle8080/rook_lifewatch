@@ -26,21 +26,31 @@ impl LibCameraFrameSource {
         Ok(Self { inner })
     }
 
-    pub fn camera_count(&self) -> u32 {
+    pub fn camera_count(&self) -> FrameResult<u32> {
         unsafe {
-            ffi::rook_lw_camera_capturer_get_camera_count(self.inner.as_ptr())
+            let mut count: u32 = 0;
+            if ffi::rook_lw_camera_capturer_get_camera_count(self.inner.as_ptr(), &mut count as *mut u32) != 0 {
+                return Err(FrameError::ProcessingError("Failed to get camera count".to_string()));
+            }
+            Ok(count)
         }
     }
 
     /// Returns the camera name at `index` as an owned `String`.
     ///
     /// Returns `None` if the index is out of range or the C API returns null.
-    pub fn camera_name(&self, index: u32) -> Option<String> {
-        let ptr = unsafe { ffi::rook_lw_camera_capturer_get_camera_name(self.inner.as_ptr(), index) };
+    pub fn camera_name(&self, index: u32) -> FrameResult<String> {
+        let ptr = unsafe {
+            let mut out_camera_name: *const std::os::raw::c_char = std::ptr::null();
+            if ffi::rook_lw_camera_capturer_get_camera_name(self.inner.as_ptr(), index, &mut out_camera_name as *mut *const std::os::raw::c_char) != 0 {
+                return Err(FrameError::ProcessingError("Failed to get camera name".to_string()));
+            }
+            out_camera_name
+        };
         if ptr.is_null() {
-            return None;
+            return Err(FrameError::ProcessingError("Camera name pointer is null".to_string()));
         }
-        Some(unsafe { CStr::from_ptr(ptr) }.to_string_lossy().into_owned())
+        Ok(unsafe { CStr::from_ptr(ptr) }.to_string_lossy().into_owned())
     }
 
     pub fn set_camera_source(&mut self, _source: &str) -> FrameResult<()> {
@@ -113,12 +123,10 @@ impl FrameSource for LibCameraFrameSource {
     }
 
     fn list_sources(&mut self) -> FrameResult<Vec<String>> {
-        println!("Listing libcamera sources...");
         let mut sources = Vec::new();
-        for i in 0..self.camera_count() {
-            if let Some(cam) = self.camera_name(i) {
-                sources.push(cam);
-            }
+        for i in 0..self.camera_count()? {
+            let cam = self.camera_name(i)?;
+            sources.push(cam);
         }
         Ok(sources)
     }
