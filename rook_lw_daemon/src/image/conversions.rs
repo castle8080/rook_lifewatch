@@ -4,17 +4,10 @@ use std::io::Cursor;
 use crate::events::capture_event::CaptureEvent;
 use crate::image::fourcc;
 use crate::image::frame::{FrameError, FrameResult};
-
-/// Convert a `CaptureEvent` into JPEG bytes without forcing a copy.
-///
-/// - MJPG: returns `Cow::Borrowed(&event.image_data[0])`
-/// - Other formats: returns `Cow::Owned(Vec<u8>)` containing a freshly encoded JPEG
-pub fn capture_event_to_jpeg(event: &CaptureEvent) -> FrameResult<Cow<'_, [u8]>> {
-    capture_event_to_jpeg_with_quality(event, 85)
-}
+use image::GenericImageView;
 
 /// Same as `capture_event_to_jpeg`, but allows specifying JPEG quality (1-100).
-pub fn capture_event_to_jpeg_with_quality(
+pub fn capture_event_to_jpeg(
     event: &CaptureEvent,
     quality: u8,
 ) -> FrameResult<Cow<'_, [u8]>> {
@@ -23,7 +16,12 @@ pub fn capture_event_to_jpeg_with_quality(
     let pixel_format = event.pixel_format;
 
     if pixel_format == fourcc::FOURCC_MJPG {
-        return mjpg_event_to_jpeg(event);
+        // Honor quality for MJPG by optionally recompressing.
+        if quality >= 100 {
+            return mjpg_event_to_jpeg(event);
+        }
+        let jpeg = mjpg_event_to_jpeg(event)?;
+        return Ok(Cow::Owned(reencode_jpeg_with_quality(jpeg.as_ref(), quality)?));
     }
 
     let rgb = if pixel_format == fourcc::FOURCC_YUYV {
@@ -49,6 +47,22 @@ pub fn capture_event_to_jpeg_with_quality(
         &rgb,
         quality,
     )?))
+}
+
+/// Decode JPEG bytes and re-encode them at a (typically lower) JPEG quality.
+///
+/// This is useful when the camera outputs MJPEG at very high quality (large files)
+/// and you want smaller JPEGs.
+pub fn reencode_jpeg(jpeg_data: &[u8]) -> FrameResult<Vec<u8>> {
+    reencode_jpeg_with_quality(jpeg_data, 85)
+}
+
+/// Same as `reencode_jpeg` but allows specifying JPEG quality (1-100).
+pub fn reencode_jpeg_with_quality(jpeg_data: &[u8], quality: u8) -> FrameResult<Vec<u8>> {
+    let decoded = image::load_from_memory_with_format(jpeg_data, image::ImageFormat::Jpeg)?;
+    let (width, height) = decoded.dimensions();
+    let rgb = decoded.to_rgb8().into_raw();
+    encode_rgb_to_jpeg(width as usize, height as usize, &rgb, quality)
 }
 
 fn validate_has_planes(event: &CaptureEvent) -> FrameResult<()> {

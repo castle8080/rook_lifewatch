@@ -36,7 +36,7 @@ impl ImageStorer {
             "Processing capture event"
         );
 
-        let jpeg_data = capture_event_to_jpeg(&capture_event)?;
+        let jpeg_data = capture_event_to_jpeg(&capture_event, 85)?;
 
         tracing::info!(
             event_id = %capture_event.event_id,
@@ -57,8 +57,6 @@ impl ImageStorer {
     }
 
     fn build_image_path(&self, capture_event: &CaptureEvent) -> PathBuf {
-        // <storage_root>/YYYY-MM-DD/YYYYMMDD_HHMMSS.sss_<event_id>_<capture_index>_<motion_score>.jpg
-
         let date_dir = capture_event
             .capture_timestamp
             .format("%Y-%m-%d")
