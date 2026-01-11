@@ -1,14 +1,20 @@
-use std::{fs, path};
 use std::time::Duration;
 use std::thread::sleep;
 
-use crate::image::conversions::frame_to_jpeg_bytes;
 use crate::image::frame::{FrameSource, FrameResult};
 use crate::image::frame_slot::FrameSlot;
 use crate::image::yplane;
+use crate::events::capture_event::CaptureEvent;
 
 use tracing::info;
 use uuid::Uuid;
+
+struct MotionDetectionResult {
+    pub event_id: Uuid,
+    pub event_timestamp: chrono::DateTime<chrono::Local>,
+    pub motion_score: f32,
+    pub capture_events: Vec<CaptureEvent>,
+}
 
 pub struct MotionWatcher {
     frame_source: Box<dyn FrameSource>,
@@ -53,87 +59,133 @@ impl MotionWatcher {
         // Ok(())
     }
 
+    fn on_capture_event(&mut self, event: CaptureEvent) -> FrameResult<()> {
+        // Placeholder for handling the capture event
+        info!(
+            event_id = %event.event_id,
+            capture_index = event.capture_index,
+            motion_score = event.motion_score,
+            "Capture event received"
+        );
+        Ok(())
+    }
+
     fn run_round(&mut self) -> FrameResult<()> {
-        let motion_score = self.detect_motion()?;
-        if motion_score >= self.motion_threshold {
-            self.capture_images(motion_score)?;
+        match self.detect_motion()? {
+            Some(motion_detection_result) => {
+                self.on_motion_detected(motion_detection_result)?;
+            },
+            None => {
+                //info!("No motion detected in this round");
+            }
         }
         Ok(())
     }
 
-    fn on_captured_image(
-        &mut self, jpeg_bytes: Vec<u8>,
-        motion_score: f32,
-        capture_event_id: Uuid,
-        capture_index: u32) -> FrameResult<()>
-    {
-        // Placeholder: In a real implementation, save to disk, send over network, etc.
-        info!(
-            capture_event_id = %capture_event_id,
-            capture_index,
-            motion_score,
-            bytes = jpeg_bytes.len(),
-            "Captured image"
-        );
+    fn on_motion_detected(&mut self, result: MotionDetectionResult) -> FrameResult<()> {
+        info!(event_id = %result.event_id, motion_score = result.motion_score, "Motion detected");
 
-        // This is temporary.
-        let image_dump_dir = "var/images";
+        let index_offset = result.capture_events.len() as u32;
 
-        fs::create_dir_all(image_dump_dir)?;
+        // Emit initial capture events
+        for capture_event in result.capture_events {
+            self.on_capture_event(capture_event)?;
+        }
 
-        let now = chrono::Local::now();
-        let day_dir = now.format("%Y-%m-%d").to_string();
-        let timestamp = now.format("%Y%m%d_%H%M%S%.3f").to_string();
-        let day_path = path::Path::new(image_dump_dir).join(day_dir);
-        fs::create_dir_all(&day_path)?;
-        let image_filename = format!(
-            "{}_{}_{}_{}.jpg",
-            timestamp, capture_event_id, capture_index, motion_score
-        );
-        let image_path1 = day_path.join(image_filename);
-
-        fs::write(&image_path1, jpeg_bytes)?;
-        Ok(())
-    }
-
-    fn capture_images(&mut self, motion_score: f32) -> FrameResult<()> {
-		let capture_event_id = Uuid::new_v4();
-        
-		info!(
-			"Motion detected! motion_score: {} - Capturing {} frames...",
-			motion_score,
-			self.capture_count
-		);
         for capture_index in 0..self.capture_count {
-            let jpeg_bytes = {
+
+            let capture_event: CaptureEvent = {
                 let frame = self.frame_source.next_frame()?;
-                frame_to_jpeg_bytes(&*frame)?
+                CaptureEvent {
+                    event_id: result.event_id,
+                    event_timestamp: result.event_timestamp,
+                    motion_score: result.motion_score,
+                    capture_index: capture_index + index_offset, // offset because first images were from motion detection
+                    capture_timestamp: chrono::Local::now(),
+                    pixel_format: self.frame_source.get_pixel_format()?,
+                    width: self.frame_source.get_width()?,
+                    height: self.frame_source.get_height()?,
+                    image_data: self.get_image_data(&*frame)?,
+                }
             };
-			self.on_captured_image(jpeg_bytes, motion_score, capture_event_id, capture_index)?;
+
+            self.on_capture_event(capture_event)?;
+
             sleep(self.capture_interval);
         }
+
         Ok(())
     }
 
-    fn detect_motion(&mut self) -> FrameResult<f32> {
+    fn detect_motion(&mut self) -> FrameResult<Option<MotionDetectionResult>> {
         // Keep a small 2-slot ring. Each slot owns its frame and caches a YPlane.
         // YUYV: YPlane is a borrowed view (no copy). MJPG: YPlane owns decoded luma.
         let mut last = FrameSlot::from_frame(self.frame_source.next_frame()?)?;
+        let mut last_timestamp = chrono::Local::now();
 
         for _watch_index in 0..self.motion_watch_count {
             sleep(self.motion_detect_interval);
 
             let current = FrameSlot::from_frame(self.frame_source.next_frame()?)?;
+            let current_timestamp = chrono::Local::now();
 
             let motion_level = yplane::get_motion_score(last.yplane(), current.yplane(), 1)?;
             
             if motion_level >= self.motion_threshold {
-                return Ok(motion_level);
+                let event_id = Uuid::new_v4();
+
+                let mut result = MotionDetectionResult {
+                    event_id,
+                    event_timestamp: current_timestamp,
+                    motion_score: motion_level,
+                    capture_events: Vec::new(),
+                };
+
+                // Store first image.
+                result.capture_events.push(CaptureEvent {
+                    event_id,
+                    event_timestamp: last_timestamp,
+                    motion_score: motion_level,
+                    capture_index: 0,
+                    capture_timestamp: last_timestamp,
+                    pixel_format: self.frame_source.get_pixel_format()?,
+                    width: self.frame_source.get_width()?,
+                    height: self.frame_source.get_height()?,
+                    image_data: self.get_image_data(&*last.frame())?,
+                });
+
+                // store second image.
+                result.capture_events.push(CaptureEvent {
+                    event_id,
+                    event_timestamp: current_timestamp,
+                    motion_score: motion_level,
+                    capture_index: 1,
+                    capture_timestamp: current_timestamp,
+                    pixel_format: self.frame_source.get_pixel_format()?,
+                    width: self.frame_source.get_width()?,
+                    height: self.frame_source.get_height()?,
+                    image_data: self.get_image_data(&*current.frame())?,
+                });
+
+                return Ok(Some(result));
             }
 
             last = current;
+            last_timestamp = current_timestamp;
         }
 
-        Ok(0.0)
+        Ok(None)
     }
+
+    fn get_image_data(&self, frame: &dyn crate::image::frame::Frame) -> FrameResult<Vec<Vec<u8>>> {
+        let mut image_data: Vec<Vec<u8>> = Vec::new();
+
+        for plane_index in 0..frame.get_plane_count()? {
+            let plane = frame.get_plane_data(plane_index)?;
+            image_data.push(plane.to_vec());
+        }
+
+        Ok(image_data)
+    }
+
 }
