@@ -2,6 +2,8 @@ use rook_lw_daemon::error::RookLWResult;
 use rook_lw_daemon::image::frame_source_factory::FrameSourceFactory;
 use rook_lw_daemon::image::fourcc::fourcc_to_string;
 use rook_lw_daemon::tasks::motion_watcher::MotionWatcher;
+use rook_lw_daemon::tasks::image_storer::ImageStorer;
+use rook_lw_daemon::events::capture_event::CaptureEvent;
 
 use tracing::{error, info};
 use tracing_subscriber::EnvFilter;
@@ -21,10 +23,8 @@ fn init_tracing() {
         .init();
 }
 
-fn main() -> RookLWResult<()> {
-    init_tracing();
-
-    // Print available frame sources at compile time
+fn create_frame_source() -> RookLWResult<Box<dyn rook_lw_daemon::image::frame::FrameSource + Send>> {
+   // Print available frame sources at compile time
     info!(available_sources = ?FrameSourceFactory::available_sources(), "Available frame sources");
 
     let mut frame_source = FrameSourceFactory::create()?;
@@ -53,9 +53,27 @@ fn main() -> RookLWResult<()> {
     }
 
 	info!(width = frame_source.get_width()?, height = frame_source.get_height()?, "Frame dimensions");
+    
+    Ok(frame_source)
+}
+
+fn main() -> RookLWResult<()> {
+    init_tracing();
+
+    let frame_source = create_frame_source()?;
+
+    // MotionWatcher produces CaptureEvents; a separate worker receives and processes them.
+    // Bounded provides backpressure so we don't buffer unbounded image data.
+    let (capture_event_tx, capture_event_rx) = crossbeam_channel::bounded::<CaptureEvent>(64);
+
+    let mut image_storer = ImageStorer::new(
+        "var/images".to_owned(),
+        capture_event_rx,
+    );
 
     let mut mw = MotionWatcher::new(
         frame_source,
+        capture_event_tx,
         std::time::Duration::from_millis(100), // motion detect interval
         10,     // motion watch count
         0.03,  // motion threshold
@@ -63,7 +81,36 @@ fn main() -> RookLWResult<()> {
         std::time::Duration::from_millis(200), // capture interval
         std::time::Duration::from_secs(5),    // round interval
     );
-    mw.run()?;
+
+    let image_storer_handle = std::thread::spawn(move || {
+        image_storer.run()
+    });
+
+    let mw_handle = std::thread::spawn(move || {
+        mw.run()
+    });
+
+    match image_storer_handle.join() {
+        Ok(result) => {
+            if let Err(e) = result {
+                error!(error = %e, "Image storer task failed");
+            }
+        },
+        Err(e) => {
+            error!(error = ?e, "Image storer task panicked");
+        }
+    }
+
+    match mw_handle.join() {
+        Ok(result) => {
+            if let Err(e) = result {
+                error!(error = %e, "Motion watcher task failed");
+            }
+        },
+        Err(e) => {
+            error!(error = ?e, "Motion watcher task panicked");
+        }
+    }
 
 	info!("Complete");
     Ok(())

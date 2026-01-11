@@ -5,7 +5,7 @@ pub struct FrameSourceFactory;
 impl FrameSourceFactory {
 
     /// Create a frame source using the default preference order
-    pub fn create() -> FrameResult<Box<dyn FrameSource>> {
+    pub fn create() -> FrameResult<Box<dyn FrameSource + Send>> {
         let sources = Self::available_sources();
         let source_name = sources
             .first()
@@ -15,7 +15,7 @@ impl FrameSourceFactory {
     }
 
     /// Try to create a specific frame source by name
-    fn try_create(source_name: &str) -> FrameResult<Box<dyn FrameSource>> {
+    fn try_create(source_name: &str) -> FrameResult<Box<dyn FrameSource + Send>> {
         match source_name {
             "libcamera" => {
                 try_create_libcamera_source()
@@ -41,7 +41,7 @@ impl FrameSourceFactory {
     }
 }
 
-fn try_create_libcamera_source() -> FrameResult<Box<dyn FrameSource>> {
+fn try_create_libcamera_source() -> FrameResult<Box<dyn FrameSource + Send>> {
     #[cfg(feature = "libcamera")]
     {
         use super::libcamera::LibCameraFrameSource;
@@ -55,7 +55,7 @@ fn try_create_libcamera_source() -> FrameResult<Box<dyn FrameSource>> {
     }
 }
 
-fn try_create_opencv_source() -> FrameResult<Box<dyn FrameSource>> {
+fn try_create_opencv_source() -> FrameResult<Box<dyn FrameSource + Send>> {
     #[cfg(feature = "opencv")]
     {
         use super::opencv::OpencvFrameSource;

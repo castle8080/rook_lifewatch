@@ -14,6 +14,12 @@ pub struct LibCameraFrameSource {
     inner: NonNull<ffi::rook_lw_camera_capturer_t>,
 }
 
+// SAFETY: `LibCameraFrameSource` provides exclusive ownership of the underlying
+// `rook_lw_camera_capturer_t*` and only exposes it through `&self`/`&mut self`
+// methods. It is intended to be used from a single thread at a time, but it is
+// safe to *transfer ownership* to another thread.
+unsafe impl Send for LibCameraFrameSource {}
+
 impl LibCameraFrameSource {
 
     pub fn new() -> FrameResult<Self> {
