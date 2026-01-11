@@ -138,7 +138,7 @@ uint32_t CameraCapturer::get_pixel_format() {
 
 	StreamConfiguration &stream_config = _config->at(0);
 
-	return stream_config.pixelFormat;
+	return stream_config.pixelFormat.fourcc();
 }
 
 uint32_t CameraCapturer::get_width() {

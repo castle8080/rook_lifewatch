@@ -1,4 +1,5 @@
 use crate::image::conversions::capture_event_to_jpeg;
+use crate::image::fourcc;
 use crate::image::frame::FrameResult;
 use crate::events::capture_event::CaptureEvent;
 
@@ -31,10 +32,18 @@ impl ImageStorer {
             motion_score = capture_event.motion_score,
             width = capture_event.width,
             height = capture_event.height,
+            pixel_format = %fourcc::fourcc_to_string(capture_event.pixel_format),
             "Processing capture event"
         );
 
         let jpeg_data = capture_event_to_jpeg(&capture_event)?;
+
+        tracing::info!(
+            event_id = %capture_event.event_id,
+            capture_index = capture_event.capture_index,
+            jpeg_len = jpeg_data.len(),
+            "Encoded JPEG"
+        );
 
         let image_path = self.build_image_path(&capture_event);
 
