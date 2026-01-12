@@ -3,6 +3,7 @@ pub mod yplane;
 pub mod fourcc;
 pub mod frame_slot;
 pub mod conversions;
+pub mod motion;
 
 #[cfg(feature = "libcamera")]
 pub mod libcamera;

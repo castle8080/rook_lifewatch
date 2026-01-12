@@ -4,13 +4,13 @@ use std::thread::sleep;
 use crate::image::frame::{FrameSource, FrameResult};
 use crate::image::frame_slot::FrameSlot;
 use crate::image::yplane;
+use crate::image::motion::motion_percentile::get_motion_percentile;
 use crate::events::capture_event::CaptureEvent;
 use crate::stats::rollingz::RollingZ;
 
 use crossbeam_channel::Sender;
 
 use tracing::{info, debug};
-use tracing_subscriber::field::debug;
 use uuid::Uuid;
 
 struct MotionDetectionResult {
@@ -133,7 +133,7 @@ impl MotionWatcher {
 
             //let motion_level = yplane::get_motion_score(last.yplane(), current.yplane(), 1)?;
             
-            let motion_level = yplane::get_motion_percentile(
+            let motion_level = get_motion_percentile(
                 last.yplane(),
                 current.yplane(),
                 0.95,
