@@ -29,7 +29,7 @@ impl ImageStorer {
         tracing::info!(
             event_id = %capture_event.event_id,
             capture_index = capture_event.capture_index,
-            motion_score = capture_event.motion_score,
+            motion_score = %format!("{}", capture_event.motion_score),
             width = capture_event.width,
             height = capture_event.height,
             pixel_format = %fourcc::fourcc_to_string(capture_event.pixel_format),

@@ -1,6 +1,7 @@
 use rook_lw_daemon::error::RookLWResult;
 use rook_lw_daemon::image::frame_source_factory::FrameSourceFactory;
 use rook_lw_daemon::image::fourcc::fourcc_to_string;
+use rook_lw_daemon::image::motion::motion_detector::{YPlaneMotionDetector, YPlaneMotionPercentileDetector, YPlaneRollingZMotionDetector};
 use rook_lw_daemon::tasks::motion_watcher::MotionWatcher;
 use rook_lw_daemon::tasks::image_storer::ImageStorer;
 use rook_lw_daemon::events::capture_event::CaptureEvent;
@@ -57,6 +58,13 @@ fn create_frame_source() -> RookLWResult<Box<dyn rook_lw_daemon::image::frame::F
     Ok(frame_source)
 }
 
+fn create_motion_detector() -> RookLWResult<Box<dyn YPlaneMotionDetector>> {
+    let base_motion_detector = YPlaneMotionPercentileDetector::new(0.95, 1.0);
+    let motion_detector = YPlaneRollingZMotionDetector::new(base_motion_detector, 0.05, 2.0)?;
+
+    Ok(Box::new(motion_detector))
+}
+
 fn main() -> RookLWResult<()> {
     init_tracing();
 
@@ -76,7 +84,7 @@ fn main() -> RookLWResult<()> {
         capture_event_tx,
         std::time::Duration::from_millis(100), // motion detect interval
         10,     // motion watch count
-        0.06,  // motion threshold
+        create_motion_detector()?,
         5,     // capture count 
         std::time::Duration::from_millis(200), // capture interval
         std::time::Duration::from_secs(2),    // round interval

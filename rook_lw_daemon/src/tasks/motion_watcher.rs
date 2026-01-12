@@ -3,10 +3,8 @@ use std::thread::sleep;
 
 use crate::image::frame::{FrameSource, FrameResult};
 use crate::image::frame_slot::FrameSlot;
-use crate::image::yplane;
-use crate::image::motion::motion_percentile::get_motion_percentile;
+use crate::image::motion::motion_detector::{YPlaneMotionDetector, MotionDetectionScore};
 use crate::events::capture_event::CaptureEvent;
-use crate::stats::rollingz::RollingZ;
 
 use crossbeam_channel::Sender;
 
@@ -16,7 +14,7 @@ use uuid::Uuid;
 struct MotionDetectionResult {
     pub event_id: Uuid,
     pub event_timestamp: chrono::DateTime<chrono::Local>,
-    pub motion_score: f32,
+    pub motion_score: MotionDetectionScore,
     pub capture_events: Vec<CaptureEvent>,
 }
 
@@ -25,11 +23,10 @@ pub struct MotionWatcher {
     capture_event_tx: Sender<CaptureEvent>,
     motion_detect_interval: Duration,
     motion_watch_count: u32,
-    motion_threshold: f32,
+    motion_detector: Box<dyn YPlaneMotionDetector>,
     capture_count: u32,
     capture_interval: Duration,
     round_interval: Duration,
-    rolling_z: RollingZ,
 }
 
 impl MotionWatcher {
@@ -39,7 +36,7 @@ impl MotionWatcher {
         capture_event_tx: Sender<CaptureEvent>,
         motion_detect_interval: Duration,
         motion_watch_count: u32,
-        motion_threshold: f32,
+        motion_detector: Box<dyn YPlaneMotionDetector>,
         capture_count: u32,
         capture_interval: Duration,
         round_interval: Duration,
@@ -49,11 +46,10 @@ impl MotionWatcher {
             capture_event_tx,
             motion_detect_interval,
             motion_watch_count,
-            motion_threshold,
+            motion_detector,
             capture_count,
             capture_interval,
             round_interval,
-            rolling_z: RollingZ::new(0.05), // example alpha value
         }
     }
 
@@ -101,7 +97,7 @@ impl MotionWatcher {
                 CaptureEvent {
                     event_id: result.event_id,
                     event_timestamp: result.event_timestamp,
-                    motion_score: result.motion_score,
+                    motion_score: result.motion_score.clone(),
                     capture_index: capture_index + index_offset, // offset because first images were from motion detection
                     capture_timestamp: chrono::Local::now(),
                     pixel_format: self.frame_source.get_pixel_format()?,
@@ -131,29 +127,24 @@ impl MotionWatcher {
             let current = FrameSlot::from_frame(self.frame_source.next_frame()?)?;
             let current_timestamp = chrono::Local::now();
 
-            //let motion_level = yplane::get_motion_score(last.yplane(), current.yplane(), 1)?;
-            
-            let motion_level = get_motion_percentile(
+            let motion_score = self.motion_detector.detect_motion(
                 last.yplane(),
                 current.yplane(),
-                0.95,
-                1,
             )?;
 
-            let motion_level_rz = self.rolling_z.update(motion_level as f64) as f32;
-
             debug!(
-                motion_level = motion_level,
-                motion_level_rz = motion_level_rz,
+                motion_level = motion_score.score,
+                motion_detected = motion_score.detected,
                 "Motion watch sample"
             );
 
-            if motion_level_rz >= 2.0 && motion_level >= 0.02 {
+            if motion_score.detected {
                 let event_id = Uuid::new_v4();
 
                 info!(
-                    motion_level = motion_level,
-                    motion_level_rz = motion_level_rz,
+                    motion_score = motion_score.score,
+                    motion_detected = motion_score.detected,
+                    motion_score_properties = %format!("{:?}", motion_score.properties),
                     event_id = %event_id,
                     "Motion detected."
                 );
@@ -161,7 +152,7 @@ impl MotionWatcher {
                 let mut result = MotionDetectionResult {
                     event_id,
                     event_timestamp: current_timestamp,
-                    motion_score: motion_level,
+                    motion_score: motion_score.clone(),
                     capture_events: Vec::new(),
                 };
 
@@ -169,7 +160,7 @@ impl MotionWatcher {
                 result.capture_events.push(CaptureEvent {
                     event_id,
                     event_timestamp: last_timestamp,
-                    motion_score: motion_level,
+                    motion_score: motion_score.clone(),
                     capture_index: 0,
                     capture_timestamp: last_timestamp,
                     pixel_format: self.frame_source.get_pixel_format()?,
@@ -182,7 +173,7 @@ impl MotionWatcher {
                 result.capture_events.push(CaptureEvent {
                     event_id,
                     event_timestamp: current_timestamp,
-                    motion_score: motion_level,
+                    motion_score: motion_score.clone(),
                     capture_index: 1,
                     capture_timestamp: current_timestamp,
                     pixel_format: self.frame_source.get_pixel_format()?,
