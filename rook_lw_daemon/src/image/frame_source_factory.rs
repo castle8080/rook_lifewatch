@@ -58,8 +58,8 @@ fn try_create_libcamera_source() -> FrameResult<Box<dyn FrameSource + Send>> {
 fn try_create_opencv_source() -> FrameResult<Box<dyn FrameSource + Send>> {
     #[cfg(feature = "opencv")]
     {
-        use super::opencv::OpencvFrameSource;
-        return Ok(Box::new(OpencvFrameSource::new()?));
+        use super::opencv::OpenCvFrameSource;
+        return Ok(Box::new(OpenCvFrameSource::new()?));
     }
     #[cfg(not(feature = "opencv"))]
     {
