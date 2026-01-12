@@ -9,7 +9,8 @@ use crate::stats::rollingz::RollingZ;
 
 use crossbeam_channel::Sender;
 
-use tracing::info;
+use tracing::{info, debug};
+use tracing_subscriber::field::debug;
 use uuid::Uuid;
 
 struct MotionDetectionResult {
@@ -86,8 +87,6 @@ impl MotionWatcher {
     }
 
     fn on_motion_detected(&mut self, result: MotionDetectionResult) -> FrameResult<()> {
-        info!(event_id = %result.event_id, motion_score = result.motion_score, "Motion detected");
-
         let index_offset = result.capture_events.len() as u32;
 
         // Emit initial capture events
@@ -143,10 +142,21 @@ impl MotionWatcher {
 
             let motion_level_rz = self.rolling_z.update(motion_level as f64) as f32;
 
-            info!(motion_level = motion_level, motion_level_rz = motion_level_rz, "Motion level computed");
+            debug!(
+                motion_level = motion_level,
+                motion_level_rz = motion_level_rz,
+                "Motion watch sample"
+            );
 
             if motion_level_rz >= 2.0 && motion_level >= 0.02 {
                 let event_id = Uuid::new_v4();
+
+                info!(
+                    motion_level = motion_level,
+                    motion_level_rz = motion_level_rz,
+                    event_id = %event_id,
+                    "Motion detected."
+                );
 
                 let mut result = MotionDetectionResult {
                     event_id,
