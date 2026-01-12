@@ -76,10 +76,10 @@ fn main() -> RookLWResult<()> {
         capture_event_tx,
         std::time::Duration::from_millis(100), // motion detect interval
         10,     // motion watch count
-        0.03,  // motion threshold
-        10,     // capture count 
+        0.06,  // motion threshold
+        5,     // capture count 
         std::time::Duration::from_millis(200), // capture interval
-        std::time::Duration::from_secs(5),    // round interval
+        std::time::Duration::from_secs(2),    // round interval
     );
 
     let image_storer_handle = std::thread::spawn(move || {

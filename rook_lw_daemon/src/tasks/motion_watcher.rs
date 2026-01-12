@@ -5,6 +5,7 @@ use crate::image::frame::{FrameSource, FrameResult};
 use crate::image::frame_slot::FrameSlot;
 use crate::image::yplane;
 use crate::events::capture_event::CaptureEvent;
+use crate::stats::rollingz::RollingZ;
 
 use crossbeam_channel::Sender;
 
@@ -27,6 +28,7 @@ pub struct MotionWatcher {
     capture_count: u32,
     capture_interval: Duration,
     round_interval: Duration,
+    rolling_z: RollingZ,
 }
 
 impl MotionWatcher {
@@ -50,6 +52,7 @@ impl MotionWatcher {
             capture_count,
             capture_interval,
             round_interval,
+            rolling_z: RollingZ::new(0.05), // example alpha value
         }
     }
 
@@ -92,7 +95,7 @@ impl MotionWatcher {
             self.on_capture_event(capture_event)?;
         }
 
-        for capture_index in 0..self.capture_count {
+        for capture_index in 0..(self.capture_count-index_offset) {
 
             let capture_event: CaptureEvent = {
                 let frame = self.frame_source.next_frame()?;
@@ -129,9 +132,20 @@ impl MotionWatcher {
             let current = FrameSlot::from_frame(self.frame_source.next_frame()?)?;
             let current_timestamp = chrono::Local::now();
 
-            let motion_level = yplane::get_motion_score(last.yplane(), current.yplane(), 1)?;
+            //let motion_level = yplane::get_motion_score(last.yplane(), current.yplane(), 1)?;
             
-            if motion_level >= self.motion_threshold {
+            let motion_level = yplane::get_motion_percentile(
+                last.yplane(),
+                current.yplane(),
+                0.95,
+                1,
+            )?;
+
+            let motion_level_rz = self.rolling_z.update(motion_level as f64) as f32;
+
+            info!(motion_level = motion_level, motion_level_rz = motion_level_rz, "Motion level computed");
+
+            if motion_level_rz >= 2.0 && motion_level >= 0.02 {
                 let event_id = Uuid::new_v4();
 
                 let mut result = MotionDetectionResult {
