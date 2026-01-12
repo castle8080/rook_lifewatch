@@ -135,6 +135,7 @@ impl MotionWatcher {
             debug!(
                 motion_level = motion_score.score,
                 motion_detected = motion_score.detected,
+                motion_properties = %format!("{:?}", motion_score.properties),
                 "Motion watch sample"
             );
 

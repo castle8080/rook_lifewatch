@@ -1,7 +1,7 @@
 use rook_lw_daemon::error::RookLWResult;
 use rook_lw_daemon::image::frame_source_factory::FrameSourceFactory;
 use rook_lw_daemon::image::fourcc::fourcc_to_string;
-use rook_lw_daemon::image::motion::motion_detector::{YPlaneMotionDetector, YPlaneMotionPercentileDetector, YPlaneRollingZMotionDetector};
+use rook_lw_daemon::image::motion::motion_detector::{YPlaneMotionDetector, YPlaneMotionPercentileDetector, YPlaneRollingZMotionDetector, YPlaneBoxedAverageMotionDetector};
 use rook_lw_daemon::tasks::motion_watcher::MotionWatcher;
 use rook_lw_daemon::tasks::image_storer::ImageStorer;
 use rook_lw_daemon::events::capture_event::CaptureEvent;
@@ -59,8 +59,10 @@ fn create_frame_source() -> RookLWResult<Box<dyn rook_lw_daemon::image::frame::F
 }
 
 fn create_motion_detector() -> RookLWResult<Box<dyn YPlaneMotionDetector>> {
-    let base_motion_detector = YPlaneMotionPercentileDetector::new(0.95, 1.0);
+    let base_motion_detector = YPlaneMotionPercentileDetector::new(0.95, 0.02);
     let motion_detector = YPlaneRollingZMotionDetector::new(base_motion_detector, 0.05, 2.0)?;
+
+    let motion_detector = YPlaneBoxedAverageMotionDetector::new(50, 0.9, 0.03);
 
     Ok(Box::new(motion_detector))
 }

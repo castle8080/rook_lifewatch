@@ -68,7 +68,7 @@ impl ImageStorer {
             .to_string();
 
         // Keep a stable, fairly precise numeric format in filenames.
-        let motion_score = format!("{:.9}", capture_event.motion_score);
+        let motion_score = format!("{:.9}", capture_event.motion_score.score);
 
         let filename = format!(
             "{timestamp}_{}_{}_{}.jpg",
