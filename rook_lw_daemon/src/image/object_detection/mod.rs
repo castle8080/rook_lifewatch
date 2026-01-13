@@ -1,5 +1,6 @@
 
 pub mod opencv_object_detector;
+pub mod onnx_object_detector;
 
 use serde::Serialize;
 
