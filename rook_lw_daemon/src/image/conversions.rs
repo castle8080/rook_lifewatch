@@ -4,7 +4,45 @@ use std::io::Cursor;
 use crate::events::capture_event::CaptureEvent;
 use crate::image::fourcc;
 use crate::image::frame::{FrameError, FrameResult};
-use image::GenericImageView;
+use crate::image::fourcc::{FOURCC_MJPG, FOURCC_YUYV, FOURCC_NV12, FOURCC_YU12, FOURCC_RGB3, FOURCC_BGR3};
+
+use image::{DynamicImage, RgbImage, GenericImageView};
+
+/// Converts a CaptureEvent to a DynamicImage (RGB8).
+/// Supports RGB3, BGR3, YUYV, NV12, YU12/I420, MJPG.
+pub fn capture_event_to_dynamic_image(event: &CaptureEvent) -> FrameResult<DynamicImage> {
+    let pixel_format = event.pixel_format;
+    let width = event.width;
+    let height = event.height;
+
+    let rgb: Vec<u8> = if pixel_format == FOURCC_RGB3 {
+        rgb_from_rgb3_event(event)?
+    } else if pixel_format == FOURCC_BGR3 {
+        rgb_from_bgr3_event(event)?
+    } else if pixel_format == FOURCC_YUYV {
+        rgb_from_yuyv_event(event)?
+    } else if pixel_format == FOURCC_NV12 {
+        rgb_from_nv12_event(event)?
+    } else if pixel_format == FOURCC_YU12 {
+        rgb_from_yu12_event(event)?
+    } else if pixel_format == FOURCC_MJPG {
+        // Decode JPEG to DynamicImage directly
+        let jpeg = mjpg_event_to_jpeg(event)?;
+        let img = image::load_from_memory_with_format(&jpeg, image::ImageFormat::Jpeg)
+            .map_err(|e| FrameError::ProcessingError(format!("JPEG decode error: {e}")))?;
+        return Ok(img);
+    } else {
+        return Err(FrameError::ProcessingError(format!(
+            "Unsupported pixel format for DynamicImage conversion: {}",
+            crate::image::fourcc::fourcc_to_string(pixel_format)
+        )));
+    };
+
+    // Construct RgbImage from raw RGB buffer
+    let img = RgbImage::from_raw(width as u32, height as u32, rgb)
+        .ok_or_else(|| FrameError::ProcessingError("Failed to create RgbImage from buffer".to_string()))?;
+    Ok(DynamicImage::ImageRgb8(img))
+}
 
 /// Same as `capture_event_to_jpeg`, but allows specifying JPEG quality (1-100).
 pub fn capture_event_to_jpeg(

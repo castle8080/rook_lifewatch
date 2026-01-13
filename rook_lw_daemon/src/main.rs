@@ -81,6 +81,16 @@ fn create_motion_detector() -> RookLWResult<Box<dyn YPlaneMotionDetector>> {
     Ok(Box::new(motion_detector))
 }
 
+fn create_onnx_object_detector() -> RookLWResult<rook_lw_daemon::image::object_detection::onnx_object_detector::OnnxObjectDetector> {
+    let object_detector = rook_lw_daemon::image::object_detection::onnx_object_detector::OnnxObjectDetector::new(
+        "var/models/yolov4-tiny.onnx",
+        "var/models/coco.names",
+        0.15  // YOLO confidence threshold
+    )?;
+
+    Ok(object_detector)
+}
+
 fn create_object_detector() -> RookLWResult<OpenCVObjectDetector> {
     let object_detector = OpenCVObjectDetector::new(
         "var/models/yolov4-tiny.cfg",
@@ -94,6 +104,10 @@ fn create_object_detector() -> RookLWResult<OpenCVObjectDetector> {
 
 fn run_daemon() -> RookLWResult<()> {
     init_tracing();
+
+
+    let onnx_object_detector = create_onnx_object_detector()?;
+    info!("Created ONNX object detector");
 
     let frame_source = create_frame_source()?;
 

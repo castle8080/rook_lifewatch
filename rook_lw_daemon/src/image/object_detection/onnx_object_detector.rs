@@ -13,6 +13,7 @@ use ort::{
     session::Session,
 };
 use ndarray::Array4;
+use image::GenericImageView;
 
 /// Object detector using YOLO models with ONNX Runtime.
 pub struct OnnxObjectDetector {
@@ -99,6 +100,55 @@ impl OnnxObjectDetector {
 
     pub fn class_names(&self) -> &[String] {
         &self.class_names
+    }
+
+    /// Detect objects in an image from a DynamicImage.
+    ///
+    /// This method efficiently preprocesses the image without requiring an intermediate
+    /// RGB buffer allocation.
+    ///
+    /// # Arguments
+    ///
+    /// * `image` - Image from the `image` crate (supports JPEG, PNG, etc.)
+    ///
+    /// # Returns
+    ///
+    /// Vector of detected objects with bounding boxes and confidence scores.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let img = image::open("photo.jpg")?;
+    /// let detections = detector.detect_from_image(&img)?;
+    /// ```
+    pub fn detect_from_image(
+        &mut self,
+        image: &image::DynamicImage,
+    ) -> FrameResult<Vec<Detection>> {
+        let (width, height) = image.dimensions();
+        
+        // Preprocess directly from DynamicImage
+        let input_tensor = self.preprocess_from_dynamic_image(image)?;
+        
+        // Run inference
+        use ort::value::Tensor;
+        let shape = input_tensor.shape().to_vec();
+        let (data, _offset) = input_tensor.into_raw_vec_and_offset();
+        let input_value = Tensor::from_array((shape.as_slice(), data))
+            .context("Failed to create tensor")?;
+        
+        let outputs = self.session
+            .run(ort::inputs![&input_value])
+            .context("Failed to run ONNX inference")?;
+
+        let output_tuple = outputs[0].try_extract_tensor::<f32>()
+            .context("Failed to extract output tensor")?;
+        let (output_shape, output_data) = output_tuple;
+        let shape_vec = output_shape.as_ref().to_vec();
+        let data_vec = output_data.to_vec();
+        drop(outputs);
+
+        self.post_process(&shape_vec, &data_vec, width as i32, height as i32)
     }
 
     /// Detect objects in an image.
@@ -198,6 +248,45 @@ impl OnnxObjectDetector {
                         input[[0, 2, out_y, out_x]] = image_data[pixel_idx] as f32 / 255.0;     // B
                     }
                 }
+            }
+        }
+
+        Ok(input)
+    }
+
+    /// Preprocess directly from a DynamicImage without allocating an RGB buffer.
+    ///
+    /// This efficiently accesses pixels on-demand via get_pixel() instead of
+    /// materializing the entire image in RGB format first.
+    fn preprocess_from_dynamic_image(
+        &self,
+        image: &image::DynamicImage,
+    ) -> Result<Array4<f32>> {
+        let (width, height) = image.dimensions();
+        let channels = 3;
+        
+        // Create input array with shape [1, 3, input_height, input_width]
+        let mut input = Array4::<f32>::zeros((1, channels, self.input_height, self.input_width));
+
+        // Resize ratios
+        let x_ratio = width as f32 / self.input_width as f32;
+        let y_ratio = height as f32 / self.input_height as f32;
+
+        // Iterate over output tensor dimensions
+        for out_y in 0..self.input_height {
+            for out_x in 0..self.input_width {
+                // Calculate source coordinates
+                let src_x = ((out_x as f32 * x_ratio) as u32).min(width - 1);
+                let src_y = ((out_y as f32 * y_ratio) as u32).min(height - 1);
+                
+                // Get pixel directly from DynamicImage (no RGB buffer allocation!)
+                let pixel = image.get_pixel(src_x, src_y);
+                let rgb = pixel.0; // [r, g, b, a] - we ignore alpha
+                
+                // Normalize to [0, 1] and store in CHW format
+                input[[0, 0, out_y, out_x]] = rgb[0] as f32 / 255.0; // R
+                input[[0, 1, out_y, out_x]] = rgb[1] as f32 / 255.0; // G
+                input[[0, 2, out_y, out_x]] = rgb[2] as f32 / 255.0; // B
             }
         }
 
