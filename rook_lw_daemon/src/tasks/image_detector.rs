@@ -60,6 +60,18 @@ impl ImageDetector {
 
         info!(detection_count = detections.len(), "Detections found");
 
+        if tracing::enabled!(tracing::Level::INFO) {
+            for (i, detection) in detections.iter().enumerate() {
+                info!(
+                    detection_index = i,
+                    class_id = detection.class_id,
+                    class_name = %detection.class_name,
+                    confidence = %format!("{}", detection.confidence),
+                    "Detection details"
+                );
+            }
+        }
+
         // Write detections to JSON file
         let json_data = serde_json::to_string_pretty(&detections)?;
         std::fs::write(&detection_file, json_data)?;
