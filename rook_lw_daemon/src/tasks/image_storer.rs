@@ -4,7 +4,8 @@ use crate::image::frame::FrameResult;
 use crate::events::capture_event::CaptureEvent;
 use crate::events::storage_event::StorageEvent;
 
-use crossbeam_channel::Receiver;
+use crossbeam_channel::{Receiver, Sender};
+use tracing::error;
 
 use std::path::PathBuf;
 
@@ -31,6 +32,14 @@ impl ImageStorer {
     {
         self.on_image_stored = Some(Box::new(callback));
         self
+    }
+
+    pub fn with_sender(self, sender: Sender<StorageEvent>) -> Self {
+        self.with_callback(move |storage_event| {
+            if let Err(e) = sender.send(storage_event.clone()) {
+                error!(error = %e, "Failed to send storage event");
+            }
+        })
     }
 
     pub fn run(&mut self) -> FrameResult<()> {

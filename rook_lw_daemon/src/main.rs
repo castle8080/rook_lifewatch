@@ -109,12 +109,7 @@ fn run_daemon() -> RookLWResult<()> {
         "var/images".to_owned(),
         capture_event_rx,
     )
-    .with_callback(move |storage_event| {
-        // Forward to detection channel
-        if let Err(e) = storage_event_tx.send(storage_event.clone()) {
-            error!(error = %e, "Failed to send storage event to detector");
-        }
-    });
+    .with_sender(storage_event_tx);
 
     // Job that performs object detection on stored images.
     let object_detector = create_object_detector()?;
@@ -126,14 +121,14 @@ fn run_daemon() -> RookLWResult<()> {
 
     let mut mw = MotionWatcher::new(
         frame_source,
-        capture_event_tx,
         std::time::Duration::from_millis(100), // motion detect interval
         10,     // motion watch count
         create_motion_detector()?,
         5,     // capture count 
         std::time::Duration::from_millis(200), // capture interval
         std::time::Duration::from_secs(2),    // round interval
-    );
+    )
+    .with_sender(capture_event_tx);
 
     let handles = vec![
         std::thread::spawn(move || image_storer.run()),

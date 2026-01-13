@@ -7,9 +7,11 @@ use crate::image::motion::motion_detector::{YPlaneMotionDetector, MotionDetectio
 use crate::events::capture_event::CaptureEvent;
 
 use crossbeam_channel::Sender;
+use tracing::{info, debug, error};
 
-use tracing::{info, debug};
 use uuid::Uuid;
+
+pub type OnCaptureEventCallback = Box<dyn Fn(&CaptureEvent) + Send + 'static>;
 
 struct MotionDetectionResult {
     pub event_id: Uuid,
@@ -20,7 +22,7 @@ struct MotionDetectionResult {
 
 pub struct MotionWatcher {
     frame_source: Box<dyn FrameSource + Send>,
-    capture_event_tx: Sender<CaptureEvent>,
+    on_capture_event: Option<OnCaptureEventCallback>,
     motion_detect_interval: Duration,
     motion_watch_count: u32,
     motion_detector: Box<dyn YPlaneMotionDetector>,
@@ -33,7 +35,6 @@ impl MotionWatcher {
 
     pub fn new(
         frame_source: Box<dyn FrameSource + Send>,
-        capture_event_tx: Sender<CaptureEvent>,
         motion_detect_interval: Duration,
         motion_watch_count: u32,
         motion_detector: Box<dyn YPlaneMotionDetector>,
@@ -43,7 +44,7 @@ impl MotionWatcher {
     ) -> Self {
         Self { 
             frame_source,
-            capture_event_tx,
+            on_capture_event: None,
             motion_detect_interval,
             motion_watch_count,
             motion_detector,
@@ -51,6 +52,22 @@ impl MotionWatcher {
             capture_interval,
             round_interval,
         }
+    }
+
+    pub fn with_callback<F>(mut self, callback: F) -> Self
+    where
+        F: Fn(&CaptureEvent) + Send + 'static,
+    {
+        self.on_capture_event = Some(Box::new(callback));
+        self
+    }
+
+    pub fn with_sender(self, sender: Sender<CaptureEvent>) -> Self {
+        self.with_callback(move |capture_event| {
+            if let Err(e) = sender.send(capture_event.clone()) {
+                error!(error = %e, "Failed to send capture event");
+            }
+        })
     }
 
     pub fn run(&mut self) -> FrameResult<()> {
@@ -65,9 +82,10 @@ impl MotionWatcher {
     }
 
     fn on_capture_event(&mut self, event: CaptureEvent) -> FrameResult<()> {
-        self.capture_event_tx
-            .send(event)
-            .map_err(|_| crate::image::frame::FrameError::ProcessingError("capture event receiver disconnected".to_owned()))
+        if let Some(ref callback) = self.on_capture_event {
+            callback(&event);
+        }
+        Ok(())
     }
 
     fn run_round(&mut self) -> FrameResult<()> {
