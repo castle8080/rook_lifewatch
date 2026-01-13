@@ -2,7 +2,7 @@
 
 set -e
 
-cargo build --release --features "opencv libcamera"
+cargo build --release --features "libcamera"
 
 cp -v scripts/start_rook_lw_daemon.sh target/release/start_rook_lw_daemon.sh
 chmod +x target/release/start_rook_lw_daemon.sh

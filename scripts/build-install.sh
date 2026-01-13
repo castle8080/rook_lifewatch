@@ -15,3 +15,5 @@ for dir in $projct_dirs; do
         ./scripts/install.sh
     )
 done
+
+./scripts/download-model-files.sh

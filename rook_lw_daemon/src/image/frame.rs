@@ -25,6 +25,24 @@ impl From<std::io::Error> for FrameError {
     }
 }
 
+impl From<anyhow::Error> for FrameError {
+    fn from(err: anyhow::Error) -> Self {
+        FrameError::ProcessingError(format!("anyhow error: {err}"))
+    }
+}
+
+impl From<opencv::Error> for FrameError {
+    fn from(err: opencv::Error) -> Self {
+        FrameError::ProcessingError(format!("opencv error: {err}"))
+    }
+}
+
+impl From<serde_json::Error> for FrameError {
+    fn from(err: serde_json::Error) -> Self {
+        FrameError::ProcessingError(format!("json error: {err}"))
+    }
+}
+
 pub trait Frame {
     fn get_plane_count(&self) -> FrameResult<usize>;
     fn get_plane_data(&self, plane_index: usize) -> FrameResult<&[u8]>;
