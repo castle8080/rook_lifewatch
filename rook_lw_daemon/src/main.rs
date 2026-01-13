@@ -86,7 +86,7 @@ fn create_object_detector() -> RookLWResult<ObjectDetector> {
         "var/models/yolov4-tiny.cfg",
         "var/models/yolov4-tiny.weights",
         "var/models/coco.names",
-        0.5  // YOLO confidence threshold
+        0.15  // YOLO confidence threshold
     )?;
 
     Ok(object_detector)
