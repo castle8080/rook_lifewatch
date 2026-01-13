@@ -2,19 +2,35 @@ use crate::image::conversions::capture_event_to_jpeg;
 use crate::image::fourcc;
 use crate::image::frame::FrameResult;
 use crate::events::capture_event::CaptureEvent;
+use crate::events::storage_event::StorageEvent;
 
 use crossbeam_channel::Receiver;
 
 use std::path::PathBuf;
 
+pub type OnImageStoredCallback = Box<dyn Fn(&StorageEvent) + Send + 'static>;
+
 pub struct ImageStorer {
     storage_root: String,
     capture_event_rx: Receiver<CaptureEvent>,
+    on_image_stored: Option<OnImageStoredCallback>,
 }
 
 impl ImageStorer {
     pub fn new(storage_root: String, capture_event_rx: Receiver<CaptureEvent>) -> Self {
-        Self { storage_root, capture_event_rx }
+        Self { 
+            storage_root, 
+            capture_event_rx,
+            on_image_stored: None,
+        }
+    }
+
+    pub fn with_callback<F>(mut self, callback: F) -> Self
+    where
+        F: Fn(&StorageEvent) + Send + 'static,
+    {
+        self.on_image_stored = Some(Box::new(callback));
+        self
     }
 
     pub fn run(&mut self) -> FrameResult<()> {
@@ -52,6 +68,15 @@ impl ImageStorer {
         }
 
         std::fs::write(&image_path, jpeg_data.as_ref())?;
+
+        // Invoke the callback if one is configured
+        if let Some(ref callback) = self.on_image_stored {
+            let storage_event = StorageEvent {
+                capture_event,
+                image_path,
+            };
+            callback(&storage_event);
+        }
 
         Ok(())
     }

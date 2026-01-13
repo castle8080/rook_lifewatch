@@ -6,7 +6,9 @@ use rook_lw_daemon::image::motion::motion_detector::{YPlaneMotionDetector, YPlan
 use rook_lw_daemon::tasks::batch_image_object_detector::BatchImageObjectDetector;
 use rook_lw_daemon::tasks::motion_watcher::MotionWatcher;
 use rook_lw_daemon::tasks::image_storer::ImageStorer;
+use rook_lw_daemon::tasks::image_detector::ImageDetector;
 use rook_lw_daemon::events::capture_event::CaptureEvent;
+use rook_lw_daemon::events::storage_event::StorageEvent;
 
 use tracing::{error, info};
 use tracing_subscriber::EnvFilter;
@@ -79,6 +81,17 @@ fn create_motion_detector() -> RookLWResult<Box<dyn YPlaneMotionDetector>> {
     Ok(Box::new(motion_detector))
 }
 
+fn create_object_detector() -> RookLWResult<ObjectDetector> {
+    let object_detector = ObjectDetector::new(
+        "var/models/yolov4-tiny.cfg",
+        "var/models/yolov4-tiny.weights",
+        "var/models/coco.names",
+        0.5  // YOLO confidence threshold
+    )?;
+
+    Ok(object_detector)
+}
+
 fn run_daemon() -> RookLWResult<()> {
     init_tracing();
 
@@ -88,9 +101,27 @@ fn run_daemon() -> RookLWResult<()> {
     // Bounded provides backpressure so we don't buffer unbounded image data.
     let (capture_event_tx, capture_event_rx) = crossbeam_channel::bounded::<CaptureEvent>(64);
 
+    // ImageStorer produces StorageEvents; ImageDetector receives and processes them.
+    let (storage_event_tx, storage_event_rx) = crossbeam_channel::bounded::<StorageEvent>(64);
+
+    // Job that stores images to disk.
     let mut image_storer = ImageStorer::new(
         "var/images".to_owned(),
         capture_event_rx,
+    )
+    .with_callback(move |storage_event| {
+        // Forward to detection channel
+        if let Err(e) = storage_event_tx.send(storage_event.clone()) {
+            error!(error = %e, "Failed to send storage event to detector");
+        }
+    });
+
+    // Job that performs object detection on stored images.
+    let object_detector = create_object_detector()?;
+
+    let mut image_detector = ImageDetector::new(
+        storage_event_rx,
+        object_detector,
     );
 
     let mut mw = MotionWatcher::new(
@@ -104,33 +135,22 @@ fn run_daemon() -> RookLWResult<()> {
         std::time::Duration::from_secs(2),    // round interval
     );
 
-    let image_storer_handle = std::thread::spawn(move || {
-        image_storer.run()
-    });
+    let handles = vec![
+        std::thread::spawn(move || image_storer.run()),
+        std::thread::spawn(move || image_detector.run()),
+        std::thread::spawn(move || mw.run()),
+    ];
 
-    let mw_handle = std::thread::spawn(move || {
-        mw.run()
-    });
-
-    match image_storer_handle.join() {
-        Ok(result) => {
-            if let Err(e) = result {
-                error!(error = %e, "Image storer task failed");
+    for handle in handles {
+        match handle.join() {
+            Ok(result) => {
+                if let Err(e) = result {
+                    error!(error = %e, "Task failed");
+                }
+            },
+            Err(e) => {
+                error!(error = ?e, "Task panicked");
             }
-        },
-        Err(e) => {
-            error!(error = ?e, "Image storer task panicked");
-        }
-    }
-
-    match mw_handle.join() {
-        Ok(result) => {
-            if let Err(e) = result {
-                error!(error = %e, "Motion watcher task failed");
-            }
-        },
-        Err(e) => {
-            error!(error = ?e, "Motion watcher task panicked");
         }
     }
 
@@ -142,16 +162,11 @@ fn run_test_detection() -> RookLWResult<()> {
     init_tracing();
 
     let image_dir = "var/images";
+    let object_detector = create_object_detector()?;
 
-    let detector = ObjectDetector::new(
-        "var/models/yolov4-tiny.cfg",
-        "var/models/yolov4-tiny.weights",
-        "var/models/coco.names",
-        0.5  // YOLO confidence threshold
-    )?;
-
-    info!("Created object detector");
-    let mut batch_detector = BatchImageObjectDetector::new(image_dir.to_owned(), detector);
+    let mut batch_detector = BatchImageObjectDetector::new(
+        image_dir.to_owned(),
+        object_detector);
     
     info!("Created batch image object detector");
     batch_detector.run();
@@ -160,6 +175,6 @@ fn run_test_detection() -> RookLWResult<()> {
 }
 
 fn main() -> RookLWResult<()> {
-    //run_daemon()
-    run_test_detection()
+    run_daemon()
+    //run_test_detection()
 }

@@ -2,6 +2,7 @@ use uuid::Uuid;
 
 use crate::image::motion::motion_detector::MotionDetectionScore;
 
+#[derive(Clone, Debug)]
 pub struct CaptureEvent {
     pub event_id: Uuid,
     pub event_timestamp: chrono::DateTime<chrono::Local>,
