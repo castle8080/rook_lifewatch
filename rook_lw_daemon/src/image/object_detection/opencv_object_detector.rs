@@ -1,43 +1,21 @@
 //! Object detection using YOLO (Darknet) models with OpenCV DNN module.
 
 use crate::image::frame::FrameResult;
+use super::Detection;
 
 use opencv::{
-    core::{Mat, Scalar, Size, Rect, Point, Vector},
+    core::{Mat, Scalar, Size, Rect, Vector},
     dnn::{Net, read_net_from_darknet, blob_from_image, DNN_BACKEND_DEFAULT, DNN_TARGET_CPU, nms_boxes},
-    imgproc::{rectangle, put_text, LINE_8, FONT_HERSHEY_SIMPLEX},
     prelude::{NetTrait, NetTraitConst, MatTraitConst},
 };
 use std::path::Path;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use anyhow::Context;
-use serde::Serialize;
 
-/// A single object detection result.
-#[derive(Debug, Clone, Serialize)]
-pub struct Detection {
-    pub class_id: i32,
-    pub class_name: String,
-    pub confidence: f32,
-    pub x: i32,
-    pub y: i32,
-    pub width: i32,
-    pub height: i32,
-}
-
-impl Detection {
-    pub fn center(&self) -> (i32, i32) {
-        (self.x + self.width / 2, self.y + self.height / 2)
-    }
-
-    pub fn rect(&self) -> Rect {
-        Rect::new(self.x, self.y, self.width, self.height)
-    }
-}
 
 /// Object detector using YOLO models.
-pub struct ObjectDetector {
+pub struct OpenCVObjectDetector {
     net: Net,
     class_names: Vec<String>,
     confidence_threshold: f32,
@@ -45,7 +23,7 @@ pub struct ObjectDetector {
     input_size: i32,
 }
 
-impl ObjectDetector {
+impl OpenCVObjectDetector {
     /// Create a new YOLO object detector.
     ///
     /// # Arguments
@@ -58,7 +36,7 @@ impl ObjectDetector {
     /// # Example
     ///
     /// ```ignore
-    /// let detector = ObjectDetector::new(
+    /// let detector = OpenCVObjectDetector::new(
     ///     "yolov4-tiny.cfg",
     ///     "yolov4-tiny.weights",
     ///     "coco.names",
@@ -221,30 +199,4 @@ impl ObjectDetector {
         Ok(detections)
     }
 
-    pub fn draw_detections(&self, image: &mut Mat, detections: &[Detection]) -> FrameResult<()> {
-        for detection in detections {
-            rectangle(
-                image,
-                detection.rect(),
-                Scalar::new(0.0, 255.0, 0.0, 0.0),
-                2,
-                LINE_8,
-                0,
-            ).context("Failed to draw rectangle")?;
-
-            let label = format!("{}: {:.2}", detection.class_name, detection.confidence);
-            put_text(
-                image,
-                &label,
-                Point::new(detection.x, detection.y - 5),
-                FONT_HERSHEY_SIMPLEX,
-                0.5,
-                Scalar::new(0.0, 255.0, 0.0, 0.0),
-                1,
-                LINE_8,
-                false,
-            ).context("Failed to draw text")?;
-        }
-        Ok(())
-    }
 }

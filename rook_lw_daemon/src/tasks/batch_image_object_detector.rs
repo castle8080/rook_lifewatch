@@ -1,19 +1,19 @@
 use std::path::PathBuf;
 
 use crate::image::frame::FrameResult;
-use crate::image::examine::object_detector::ObjectDetector;
+use crate::image::object_detection::opencv_object_detector::OpenCVObjectDetector;
 
 use tracing::{info, error};
 use opencv::imgcodecs::imread;
 
 pub struct BatchImageObjectDetector {
     image_dir: String,
-    object_detector: ObjectDetector,
+    object_detector: OpenCVObjectDetector,
 }
 
 impl BatchImageObjectDetector {
 
-    pub fn new(image_dir: String, object_detector: ObjectDetector) -> Self {
+    pub fn new(image_dir: String, object_detector: OpenCVObjectDetector) -> Self {
         BatchImageObjectDetector {
             image_dir,
             object_detector,

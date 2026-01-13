@@ -1,6 +1,6 @@
 use crate::events::storage_event::StorageEvent;
 use crate::image::frame::FrameResult;
-use crate::image::examine::object_detector::ObjectDetector;
+use crate::image::object_detection::opencv_object_detector::OpenCVObjectDetector;
 
 use crossbeam_channel::Receiver;
 use tracing::{info, error};
@@ -8,11 +8,11 @@ use opencv::imgcodecs::imread;
 
 pub struct ImageDetector {
     storage_event_rx: Receiver<StorageEvent>,
-    object_detector: ObjectDetector,
+    object_detector: OpenCVObjectDetector,
 }
 
 impl ImageDetector {
-    pub fn new(storage_event_rx: Receiver<StorageEvent>, object_detector: ObjectDetector) -> Self {
+    pub fn new(storage_event_rx: Receiver<StorageEvent>, object_detector: OpenCVObjectDetector) -> Self {
         Self {
             storage_event_rx,
             object_detector,

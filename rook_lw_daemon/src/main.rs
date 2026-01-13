@@ -1,5 +1,5 @@
 use rook_lw_daemon::error::RookLWResult;
-use rook_lw_daemon::image::examine::object_detector::ObjectDetector;
+use rook_lw_daemon::image::object_detection::opencv_object_detector::OpenCVObjectDetector;
 use rook_lw_daemon::image::frame_source_factory::FrameSourceFactory;
 use rook_lw_daemon::image::fourcc::fourcc_to_string;
 use rook_lw_daemon::image::motion::motion_detector::{YPlaneMotionDetector, YPlaneRollingZMotionDetector, YPlaneBoxedAverageMotionDetector};
@@ -81,8 +81,8 @@ fn create_motion_detector() -> RookLWResult<Box<dyn YPlaneMotionDetector>> {
     Ok(Box::new(motion_detector))
 }
 
-fn create_object_detector() -> RookLWResult<ObjectDetector> {
-    let object_detector = ObjectDetector::new(
+fn create_object_detector() -> RookLWResult<OpenCVObjectDetector> {
+    let object_detector = OpenCVObjectDetector::new(
         "var/models/yolov4-tiny.cfg",
         "var/models/yolov4-tiny.weights",
         "var/models/coco.names",
