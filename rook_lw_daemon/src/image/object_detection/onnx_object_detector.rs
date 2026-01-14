@@ -221,12 +221,21 @@ impl OnnxObjectDetector {
             let detection_start = i * num_attrs;
             let detection = &output_data[detection_start..detection_start + num_attrs];
 
-            // Find best class
+            // Find best class (apply softmax to class scores)
             let scores = &detection[5..];
-            let (class_id, &max_score) = scores
+            let mut exp_scores = Vec::with_capacity(scores.len());
+            let max_logit = scores.iter().cloned().fold(f32::NEG_INFINITY, f32::max);
+            let mut sum_exp = 0.0;
+            for &s in scores {
+                let exp_s = (s - max_logit).exp();
+                exp_scores.push(exp_s);
+                sum_exp += exp_s;
+            }
+            let softmax_scores: Vec<f32> = exp_scores.iter().map(|&e| e / sum_exp).collect();
+            let (class_id, &max_score) = softmax_scores
                 .iter()
                 .enumerate()
-                .max_by(|(_, a): &(usize, &f32), (_, b): &(usize, &f32)| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
+                .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
                 .unwrap_or((0, &0.0));
 
             let objectness = detection[4];
