@@ -105,10 +105,6 @@ fn create_object_detector() -> RookLWResult<OpenCVObjectDetector> {
 fn run_daemon() -> RookLWResult<()> {
     init_tracing();
 
-
-    let onnx_object_detector = create_onnx_object_detector()?;
-    info!("Created ONNX object detector");
-
     let frame_source = create_frame_source()?;
 
     // MotionWatcher produces CaptureEvents; a separate worker receives and processes them.
@@ -126,11 +122,14 @@ fn run_daemon() -> RookLWResult<()> {
     .with_sender(storage_event_tx);
 
     // Job that performs object detection on stored images.
-    let object_detector = create_object_detector()?;
+    //let object_detector = create_object_detector()?;
+
+    let onnx_object_detector = create_onnx_object_detector()?;
+    info!("Created ONNX object detector");
 
     let mut image_detector = ImageDetector::new(
         storage_event_rx,
-        object_detector,
+        onnx_object_detector,
     );
 
     let mut mw = MotionWatcher::new(

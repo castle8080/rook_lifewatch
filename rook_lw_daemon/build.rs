@@ -2,6 +2,12 @@ use std::env;
 use std::path::PathBuf;
 
 fn main() {
+
+    // C++ standard library is needed for several dependencies.
+    if cfg!(target_os = "linux") {
+        println!("cargo:rustc-link-lib=dylib=stdc++");
+    }
+
     // Only link the native libcamera capture library when the feature is enabled.
     if env::var_os("CARGO_FEATURE_LIBCAMERA").is_none() {
         return;
@@ -43,10 +49,4 @@ Install the system development package (often `libcamera-dev`) and `pkg-config`,
     // Link search path and library name. Rust/Cargo will add `lib` prefix and `.a` suffix.
     println!("cargo:rustc-link-search=native={}", lib_dir.display());
     println!("cargo:rustc-link-lib=static=rook_lw_libcamera_capture");
-
-    // Many libcamera capture implementations are C++.
-    // If the archive is pure C this is harmless; if it's C++ it avoids missing stdc++.
-    if cfg!(target_os = "linux") {
-        println!("cargo:rustc-link-lib=dylib=stdc++");
-    }
 }

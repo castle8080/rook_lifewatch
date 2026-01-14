@@ -1,0 +1,25 @@
+use rook_lw_admin::controllers;
+
+use actix_files as fs;
+use actix_web::{App, HttpServer, middleware::Logger};
+use tracing::info;
+
+#[actix_web::main]
+async fn main() -> std::io::Result<()> {
+    tracing_log::LogTracer::init().expect("Failed to set logger");
+    let _ = tracing_subscriber::fmt::try_init();
+    let protocol = "http";
+    let host = "0.0.0.0";
+    let port = 8080;
+    info!("Listening on {protocol}://{host}:{port}");
+    HttpServer::new(|| {
+        App::new()
+            .wrap(Logger::default())
+            .service(fs::Files::new("/images", "var/images").show_files_listing())
+            .service(controllers::home::register())
+            .service(controllers::hello::register())
+    })
+    .bind((host, port))?
+    .run()
+    .await
+}

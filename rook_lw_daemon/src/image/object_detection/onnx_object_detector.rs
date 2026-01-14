@@ -119,16 +119,16 @@ impl OnnxObjectDetector {
     ///
     /// ```ignore
     /// let img = image::open("photo.jpg")?;
-    /// let detections = detector.detect_from_image(&img)?;
+    /// let detections = detector.detect(&img)?;
     /// ```
-    pub fn detect_from_image(
+    pub fn detect(
         &mut self,
         image: &image::DynamicImage,
     ) -> FrameResult<Vec<Detection>> {
         let (width, height) = image.dimensions();
         
         // Preprocess directly from DynamicImage
-        let input_tensor = self.preprocess_from_dynamic_image(image)?;
+        let input_tensor = self.preprocess(image)?;
         
         // Run inference
         use ort::value::Tensor;
@@ -151,114 +151,11 @@ impl OnnxObjectDetector {
         self.post_process(&shape_vec, &data_vec, width as i32, height as i32)
     }
 
-    /// Detect objects in an image.
-    ///
-    /// # Arguments
-    ///
-    /// * `image_data` - Raw image bytes in the specified format
-    /// * `width` - Image width in pixels
-    /// * `height` - Image height in pixels
-    /// * `format` - Image format (RGB or BGR)
-    ///
-    /// # Returns
-    ///
-    /// Vector of detected objects with bounding boxes and confidence scores.
-    pub fn detect(
-        &mut self,
-        image_data: &[u8],
-        width: usize,
-        height: usize,
-        format: ImageFormat,
-    ) -> FrameResult<Vec<Detection>> {
-        // Prepare input tensor (preprocess image)
-        let input_tensor = self.preprocess_image(image_data, width, height, format)?;
-
-        // Run inference
-        use ort::value::Tensor;
-        // Convert ndarray to the format ort expects: (shape, data)
-        let shape = input_tensor.shape().to_vec();
-        let (data, _offset) = input_tensor.into_raw_vec_and_offset();
-        let input_value = Tensor::from_array((shape.as_slice(), data))
-            .context("Failed to create tensor")?;
-        
-        let outputs = self.session
-            .run(ort::inputs![&input_value])
-            .context("Failed to run ONNX inference")?;
-
-        // Get output tensor and copy data to avoid borrow issues
-        let output_tuple = outputs[0].try_extract_tensor::<f32>()
-            .context("Failed to extract output tensor")?;
-        let (output_shape, output_data) = output_tuple;
-        let shape_vec = output_shape.as_ref().to_vec();
-        let data_vec = output_data.to_vec();
-        drop(outputs); // Drop outputs to release mutable borrow
-
-        // Post-process
-        self.post_process(&shape_vec, &data_vec, width as i32, height as i32)
-    }
-
-    fn preprocess_image(
-        &self,
-        image_data: &[u8],
-        width: usize,
-        height: usize,
-        format: ImageFormat,
-    ) -> Result<Array4<f32>> {
-        let channels = 3;
-        
-        // Validate input size
-        if image_data.len() != width * height * channels {
-            bail!(
-                "Invalid image data size: expected {} bytes, got {}",
-                width * height * channels,
-                image_data.len()
-            );
-        }
-
-        // Create input array with shape [1, 3, input_height, input_width]
-        let mut input = Array4::<f32>::zeros((1, channels, self.input_height, self.input_width));
-
-        // Resize and normalize image
-        // For simplicity, we'll use bilinear interpolation manually
-        let x_ratio = width as f32 / self.input_width as f32;
-        let y_ratio = height as f32 / self.input_height as f32;
-
-        for out_y in 0..self.input_height {
-            for out_x in 0..self.input_width {
-                // Calculate source coordinates
-                let src_x = (out_x as f32 * x_ratio) as usize;
-                let src_y = (out_y as f32 * y_ratio) as usize;
-                
-                // Clamp to valid range
-                let src_x = src_x.min(width - 1);
-                let src_y = src_y.min(height - 1);
-                
-                let pixel_idx = (src_y * width + src_x) * channels;
-                
-                // Convert to RGB order and normalize to [0, 1]
-                match format {
-                    ImageFormat::RGB => {
-                        input[[0, 0, out_y, out_x]] = image_data[pixel_idx] as f32 / 255.0;     // R
-                        input[[0, 1, out_y, out_x]] = image_data[pixel_idx + 1] as f32 / 255.0; // G
-                        input[[0, 2, out_y, out_x]] = image_data[pixel_idx + 2] as f32 / 255.0; // B
-                    }
-                    ImageFormat::BGR => {
-                        input[[0, 0, out_y, out_x]] = image_data[pixel_idx + 2] as f32 / 255.0; // R
-                        input[[0, 1, out_y, out_x]] = image_data[pixel_idx + 1] as f32 / 255.0; // G
-                        input[[0, 2, out_y, out_x]] = image_data[pixel_idx] as f32 / 255.0;     // B
-                    }
-                }
-            }
-        }
-
-        Ok(input)
-    }
-
     /// Preprocess directly from a DynamicImage without allocating an RGB buffer.
     ///
     /// This efficiently accesses pixels on-demand via get_pixel() instead of
     /// materializing the entire image in RGB format first.
-    fn preprocess_from_dynamic_image(
+    fn preprocess(
         &self,
         image: &image::DynamicImage,
     ) -> Result<Array4<f32>> {
