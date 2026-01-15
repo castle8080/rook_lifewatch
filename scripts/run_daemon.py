@@ -43,6 +43,7 @@ daemon_name = os.path.basename(daemon_process)
 
 # Change working directory to home directory
 os.chdir(home_dir)
+print(f"Changed working directory to: {home_dir}")
 
 # Find ORT_DYN_LIB
 if os.environ.get("ORT_DYLIB_PATH") is None:
@@ -53,8 +54,6 @@ if os.environ.get("ORT_DYLIB_PATH") is None:
         if os.path.isfile(lib_path):
             os.environ["ORT_DYLIB_PATH"] = lib_path
             break
-
-print(f"data_dir: {data_dir}")
 
 # See if the process is already running
 processes = list_processes()

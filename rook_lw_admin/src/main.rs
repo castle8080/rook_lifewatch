@@ -8,15 +8,21 @@ use tracing::info;
 async fn main() -> std::io::Result<()> {
     tracing_log::LogTracer::init().expect("Failed to set logger");
     let _ = tracing_subscriber::fmt::try_init();
+
+    // Ensure image directory exists
+    let image_dir = "var/images";
+    std::fs::create_dir_all(image_dir)?;
+    info!("Serving images from directory: {}", image_dir);
+
     let protocol = "http";
     let host = "0.0.0.0";
     let port = 8080;
     info!("Listening on {protocol}://{host}:{port}");
-    HttpServer::new(|| {
+    HttpServer::new(move || {
         App::new()
             .wrap(Logger::default())
             .service(
-                fs::Files::new("/images", "var/images")
+                fs::Files::new("/images", image_dir)
                     .show_files_listing()
                     .files_listing_renderer(controllers::directory::sorted_listing),
             )
