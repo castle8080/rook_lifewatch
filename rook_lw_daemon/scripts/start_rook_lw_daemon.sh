@@ -1,9 +1,13 @@
-#!/bin/sh
+  #!/bin/sh
 
-set -eu
+  set -eu
 
-SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-DAEMON="$SCRIPT_DIR/rook_lw_daemon"
+# Navigate to the project root directory
+cd "$(dirname "$0")/.."
+
+APP_DIR=$(pwd)
+
+DAEMON="$APP_DIR/bin/rook_lw_daemon"
 
 if [ ! -x "$DAEMON" ]; then
   echo "Error: expected executable '$DAEMON' (same directory as this script)." >&2
@@ -17,7 +21,7 @@ if [ -n "${EXISTING_PIDS:-}" ]; then
   exit 1
 fi
 
-VAR_DIR="var"
+VAR_DIR="$APP_DIR/var"
 IMG_DIR="$VAR_DIR/images"
 LOG_DIR="$VAR_DIR/logs"
 
@@ -25,6 +29,13 @@ mkdir -p "$IMG_DIR" "$LOG_DIR"
 
 TMP_LOG="$LOG_DIR/rook_lw_daemon_starting_$$.log"
 : > "$TMP_LOG"
+
+# Check if we have libonnxruntime.so in dist/lib
+# If so, set ORT_DYLIB_PATH so the daemon can find it.
+if [ -f "$APP_DIR/lib/libonnxruntime.so" ]; then
+  ORT_DYLIB_PATH="$APP_DIR/lib/libonnxruntime.so"
+  export ORT_DYLIB_PATH
+fi
 
 # Start detached so it survives terminal close.
 if command -v setsid >/dev/null 2>&1; then

@@ -2,7 +2,10 @@
 
 set -e
 
-model_dir="var/models"
+download_dir="var/downloads"
+mkdir -p "${download_dir}"
+
+model_dir="dist/models"
 mkdir -p "${model_dir}"
 
 download_model_file() {
@@ -10,7 +13,7 @@ download_model_file() {
 
     local file_name="${model_url##*/}"
     file_name="${file_name%%\?*}"  # Remove query parameters if any
-    local full_file_name="${model_dir}/${file_name}"
+    local full_file_name="${download_dir}/${file_name}"
 
     if [ ! -f "${full_file_name}" ]; then
         echo "Downloading ${file_name}..."
@@ -18,6 +21,8 @@ download_model_file() {
     else
         echo "${file_name} already exists, skipping download."
     fi
+
+    cp -vf "${full_file_name}" "${model_dir}/"
 }
 
 download_urls="

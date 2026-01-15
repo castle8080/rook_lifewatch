@@ -5,7 +5,6 @@ use rook_lw_daemon::image::object_detection::onnx_object_detector::OnnxObjectDet
 use rook_lw_daemon::image::frame_source_factory::FrameSourceFactory;
 use rook_lw_daemon::image::fourcc::fourcc_to_string;
 use rook_lw_daemon::image::motion::motion_detector::{YPlaneMotionDetector, YPlaneRollingZMotionDetector, YPlaneBoxedAverageMotionDetector};
-use rook_lw_daemon::tasks::batch_image_object_detector::BatchImageObjectDetector;
 use rook_lw_daemon::tasks::motion_watcher::MotionWatcher;
 use rook_lw_daemon::tasks::image_storer::ImageStorer;
 use rook_lw_daemon::tasks::image_detector::ImageDetector;
@@ -90,8 +89,8 @@ fn create_object_detector() -> RookLWResult<Box<dyn ObjectDetector>> {
 
 fn create_onnx_object_detector() -> RookLWResult<OnnxObjectDetector> {
     let object_detector = OnnxObjectDetector::new(
-        "var/models/yolov4-tiny.onnx",
-        "var/models/coco.names",
+        "models/yolov4-tiny.onnx",
+        "models/coco.names",
         0.15  // YOLO confidence threshold
     )?;
 
@@ -100,9 +99,9 @@ fn create_onnx_object_detector() -> RookLWResult<OnnxObjectDetector> {
 
 fn create_opencv_object_detector() -> RookLWResult<OpenCVObjectDetector> {
     let object_detector = OpenCVObjectDetector::new(
-        "var/models/yolov4-tiny.cfg",
-        "var/models/yolov4-tiny.weights",
-        "var/models/coco.names",
+        "models/yolov4-tiny.cfg",
+        "models/yolov4-tiny.weights",
+        "models/coco.names",
         0.15  // YOLO confidence threshold
     )?;
 

@@ -18,3 +18,4 @@ for dir in $projct_dirs; do
 done
 
 ./scripts/download-model-files.sh
+./scripts/install-onnxruntime.sh
