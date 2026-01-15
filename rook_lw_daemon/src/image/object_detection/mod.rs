@@ -2,6 +2,8 @@
 pub mod opencv_object_detector;
 pub mod onnx_object_detector;
 
+use crate::image::frame::FrameResult;
+use image::DynamicImage;
 use serde::Serialize;
 
 /// A single object detection result.
@@ -20,4 +22,14 @@ impl Detection {
     pub fn center(&self) -> (i32, i32) {
         (self.x + self.width / 2, self.y + self.height / 2)
     }
+}
+
+pub trait ObjectDetector: Send {
+
+    /// Detect objects in the given image and return a list of detections.
+    fn detect(
+        &mut self,
+        image: &DynamicImage,
+    ) -> FrameResult<Vec<Detection>>;
+
 }

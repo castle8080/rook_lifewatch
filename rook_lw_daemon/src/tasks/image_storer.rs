@@ -1,4 +1,4 @@
-use crate::image::conversions::capture_event_to_jpeg;
+use crate::image::conversions::{frame_to_dynamic_image, dynamic_image_to_jpeg};
 use crate::image::fourcc;
 use crate::image::frame::FrameResult;
 use crate::events::capture_event::CaptureEvent;
@@ -61,7 +61,8 @@ impl ImageStorer {
             "Processing capture event"
         );
 
-        let jpeg_data = capture_event_to_jpeg(&capture_event, 85)?;
+        let image = frame_to_dynamic_image(&capture_event)?;
+        let jpeg_data = dynamic_image_to_jpeg(&image, Some(85))?;
 
         tracing::info!(
             event_id = %capture_event.event_id,
@@ -76,7 +77,7 @@ impl ImageStorer {
             std::fs::create_dir_all(parent_dir)?;
         }
 
-        std::fs::write(&image_path, jpeg_data.as_ref())?;
+        std::fs::write(&image_path, &jpeg_data)?;
 
         // Invoke the callback if one is configured
         if let Some(ref callback) = self.on_image_stored {

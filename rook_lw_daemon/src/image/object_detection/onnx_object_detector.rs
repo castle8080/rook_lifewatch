@@ -1,9 +1,10 @@
 //! Object detection using YOLO models with ONNX Runtime.
 
 use crate::image::frame::FrameResult;
+use crate::image::object_detection::ObjectDetector;
 use super::Detection;
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result};
 use std::path::Path;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
@@ -23,15 +24,6 @@ pub struct OnnxObjectDetector {
     nms_threshold: f32,
     input_width: usize,
     input_height: usize,
-}
-
-/// Image format for input data.
-#[derive(Debug, Clone, Copy)]
-pub enum ImageFormat {
-    /// RGB format (3 channels, R-G-B order)
-    RGB,
-    /// BGR format (3 channels, B-G-R order)
-    BGR,
 }
 
 impl OnnxObjectDetector {
@@ -351,5 +343,15 @@ impl OnnxObjectDetector {
         } else {
             0.0
         }
+    }
+}
+
+impl ObjectDetector for OnnxObjectDetector {
+    /// Detect objects in the given image and return a list of detections.
+    fn detect(
+        &mut self,
+        image: &image::DynamicImage,
+    ) -> FrameResult<Vec<Detection>> {
+        self.detect(image)
     }
 }

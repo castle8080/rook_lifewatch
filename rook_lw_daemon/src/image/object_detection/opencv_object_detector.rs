@@ -1,7 +1,7 @@
-//! Object detection using YOLO (Darknet) models with OpenCV DNN module.
+/// Object detection using YOLO (Darknet) models with OpenCV DNN module.
 
 use crate::image::frame::FrameResult;
-use super::Detection;
+use super::{Detection, ObjectDetector};
 
 use opencv::{
     core::{Mat, Scalar, Size, Rect, Vector},
@@ -13,6 +13,8 @@ use std::fs::File;
 use std::io::{BufRead, BufReader};
 use anyhow::Context;
 
+// OpenCV Net is thread-safe for inference, so this is safe for our use case
+unsafe impl Send for OpenCVObjectDetector {}
 
 /// Object detector using YOLO models.
 pub struct OpenCVObjectDetector {
@@ -199,4 +201,25 @@ impl OpenCVObjectDetector {
         Ok(detections)
     }
 
+}
+
+impl ObjectDetector for OpenCVObjectDetector {
+    /// Detect objects in the given image and return a list of detections.
+    fn detect(
+        &mut self,
+        image: &image::DynamicImage,
+    ) -> FrameResult<Vec<Detection>> {
+        let mat_ref = dynamic_image_to_mat(image)
+            .map_err(|e| crate::image::frame::FrameError::ProcessingError(format!("OpenCV conversion error: {e}")))?;
+        self.detect(&mat_ref)
+    }
+}
+
+/// Convert a DynamicImage to an OpenCV Mat (CV_8UC3, RGB order)
+fn dynamic_image_to_mat(img: &image::DynamicImage) -> opencv::Result<Mat> {
+    let rgb = img.to_rgb8();
+    let (width, height) = rgb.dimensions();
+    let boxed = Mat::from_slice(rgb.as_raw())?;
+    let reshaped = boxed.reshape(3, height as i32)?;
+    reshaped.try_clone()
 }

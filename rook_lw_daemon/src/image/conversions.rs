@@ -1,33 +1,43 @@
 use std::borrow::Cow;
 use std::io::Cursor;
 
-use crate::events::capture_event::CaptureEvent;
-use crate::image::fourcc;
-use crate::image::frame::{FrameError, FrameResult};
+use crate::image::frame::{Frame, FrameError, FrameResult};
 use crate::image::fourcc::{FOURCC_MJPG, FOURCC_YUYV, FOURCC_NV12, FOURCC_YU12, FOURCC_RGB3, FOURCC_BGR3};
 
 use image::{DynamicImage, RgbImage, GenericImageView};
 
-/// Converts a CaptureEvent to a DynamicImage (RGB8).
-/// Supports RGB3, BGR3, YUYV, NV12, YU12/I420, MJPG.
-pub fn capture_event_to_dynamic_image(event: &CaptureEvent) -> FrameResult<DynamicImage> {
-    let pixel_format = event.pixel_format;
-    let width = event.width;
-    let height = event.height;
+/// Encode a DynamicImage to JPEG bytes. Default quality is 85 if not specified.
+pub fn dynamic_image_to_jpeg(img: &DynamicImage, quality: Option<u8>) -> FrameResult<Vec<u8>> {
+    let rgb = img.to_rgb8();
+    let (width, height) = rgb.dimensions();
+    let mut out = Vec::new();
+    let q = quality.unwrap_or(85).clamp(1, 100);
+    {
+        let mut encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(std::io::Cursor::new(&mut out), q);
+        encoder.encode(&rgb, width, height, image::ColorType::Rgb8.into())?;
+    }
+    Ok(out)
+}
+
+/// Convert a Frame into a DynamicImage, supporting various pixel formats.
+pub fn frame_to_dynamic_image<F: Frame + ?Sized>(frame: &F) -> FrameResult<DynamicImage> {
+    let pixel_format = frame.get_pixel_format()?;
+    let width = frame.get_width()?;
+    let height = frame.get_height()?;
 
     let rgb: Vec<u8> = if pixel_format == FOURCC_RGB3 {
-        rgb_from_rgb3_event(event)?
+        rgb_from_rgb3_view(frame)?
     } else if pixel_format == FOURCC_BGR3 {
-        rgb_from_bgr3_event(event)?
+        rgb_from_bgr3_view(frame)?
     } else if pixel_format == FOURCC_YUYV {
-        rgb_from_yuyv_event(event)?
+        rgb_from_yuyv_view(frame)?
     } else if pixel_format == FOURCC_NV12 {
-        rgb_from_nv12_event(event)?
+        rgb_from_nv12_view(frame)?
     } else if pixel_format == FOURCC_YU12 {
-        rgb_from_yu12_event(event)?
+        rgb_from_yu12_view(frame)?
     } else if pixel_format == FOURCC_MJPG {
         // Decode JPEG to DynamicImage directly
-        let jpeg = mjpg_event_to_jpeg(event)?;
+        let jpeg = mjpg_plane_to_jpeg(frame)?;
         let img = image::load_from_memory_with_format(&jpeg, image::ImageFormat::Jpeg)
             .map_err(|e| FrameError::ProcessingError(format!("JPEG decode error: {e}")))?;
         return Ok(img);
@@ -37,54 +47,108 @@ pub fn capture_event_to_dynamic_image(event: &CaptureEvent) -> FrameResult<Dynam
             crate::image::fourcc::fourcc_to_string(pixel_format)
         )));
     };
-
     // Construct RgbImage from raw RGB buffer
     let img = RgbImage::from_raw(width as u32, height as u32, rgb)
         .ok_or_else(|| FrameError::ProcessingError("Failed to create RgbImage from buffer".to_string()))?;
     Ok(DynamicImage::ImageRgb8(img))
 }
 
-/// Same as `capture_event_to_jpeg`, but allows specifying JPEG quality (1-100).
-pub fn capture_event_to_jpeg(
-    event: &CaptureEvent,
-    quality: u8,
-) -> FrameResult<Cow<'_, [u8]>> {
-    validate_has_planes(event)?;
-    
-    let pixel_format = event.pixel_format;
-
-    if pixel_format == fourcc::FOURCC_MJPG {
-        // Honor quality for MJPG by optionally recompressing.
-        if quality >= 100 {
-            return mjpg_event_to_jpeg(event);
-        }
-        let jpeg = mjpg_event_to_jpeg(event)?;
-        return Ok(Cow::Owned(reencode_jpeg_with_quality(jpeg.as_ref(), quality)?));
+fn mjpg_plane_to_jpeg<F: Frame + ?Sized>(frame: &F) -> FrameResult<Cow<'_, [u8]>> {
+    if frame.get_plane_count()? == 0 {
+        return Err(FrameError::ProcessingError("Frame has no planes".to_string()));
     }
+    Ok(Cow::Borrowed(frame.get_plane_data(0).map_err(|_| FrameError::ProcessingError("Missing MJPG plane".to_string()))?))
+}
 
-    let rgb = if pixel_format == fourcc::FOURCC_YUYV {
-        rgb_from_yuyv_event(event)?
-    } else if pixel_format == fourcc::FOURCC_NV12 {
-        rgb_from_nv12_event(event)?
-    } else if pixel_format == fourcc::FOURCC_YU12 {
-        rgb_from_yu12_event(event)?
-    } else if pixel_format == fourcc::FOURCC_RGB3 {
-        rgb_from_rgb3_event(event)?
-    } else if pixel_format == fourcc::FOURCC_BGR3 {
-        rgb_from_bgr3_event(event)?
-    } else {
-        return Err(FrameError::ProcessingError(format!(
-            "Unsupported pixel format for JPEG conversion: {}",
-            fourcc::fourcc_to_string(pixel_format)
-        )));
-    };
+// Generic FrameView-based helpers for conversion
+fn rgb_from_rgb3_view<F: Frame + ?Sized>(frame: &F) -> FrameResult<Vec<u8>> {
+    let width = frame.get_width()?;
+    let height = frame.get_height()?;
+    let expected = width.checked_mul(height).and_then(|px| px.checked_mul(3)).ok_or_else(|| FrameError::ProcessingError("Frame dimensions overflow".to_string()))?;
+    let src = frame.get_plane_data(0).map_err(|_| FrameError::ProcessingError("Missing RGB3 plane".to_string()))?;
+    if src.len() < expected {
+        return Err(FrameError::ProcessingError(format!("RGB3 buffer too small: got {}, expected at least {}", src.len(), expected)));
+    }
+    Ok(src[..expected].to_vec())
+}
 
-    Ok(Cow::Owned(encode_rgb_to_jpeg(
-        event.width,
-        event.height,
-        &rgb,
-        quality,
-    )?))
+fn rgb_from_bgr3_view<F: Frame + ?Sized>(frame: &F) -> FrameResult<Vec<u8>> {
+    let width = frame.get_width()?;
+    let height = frame.get_height()?;
+    let expected = width.checked_mul(height).and_then(|px| px.checked_mul(3)).ok_or_else(|| FrameError::ProcessingError("Frame dimensions overflow".to_string()))?;
+    let src = frame.get_plane_data(0).map_err(|_| FrameError::ProcessingError("Missing BGR3 plane".to_string()))?;
+    if src.len() < expected {
+        return Err(FrameError::ProcessingError(format!("BGR3 buffer too small: got {}, expected at least {}", src.len(), expected)));
+    }
+    let mut out = vec![0u8; expected];
+    for i in (0..expected).step_by(3) {
+        out[i] = src[i + 2];
+        out[i + 1] = src[i + 1];
+        out[i + 2] = src[i];
+    }
+    Ok(out)
+}
+
+fn rgb_from_yuyv_view<F: Frame + ?Sized>(frame: &F) -> FrameResult<Vec<u8>> {
+    let width = frame.get_width()?;
+    let height = frame.get_height()?;
+    if width % 2 != 0 {
+        return Err(FrameError::ProcessingError(format!("YUYV conversion requires even width, got {width}")));
+    }
+    let yuyv = frame.get_plane_data(0).map_err(|_| FrameError::ProcessingError("Missing YUYV plane".to_string()))?;
+    let expected_len = width.checked_mul(height).and_then(|px| px.checked_mul(2)).ok_or_else(|| FrameError::ProcessingError("Frame dimensions overflow".to_string()))?;
+    if yuyv.len() < expected_len {
+        return Err(FrameError::ProcessingError(format!("YUYV buffer too small: got {}, expected at least {}", yuyv.len(), expected_len)));
+    }
+    yuyv_to_rgb_interleaved(width, height, &yuyv[..expected_len])
+}
+
+fn rgb_from_nv12_view<F: Frame + ?Sized>(frame: &F) -> FrameResult<Vec<u8>> {
+    let width = frame.get_width()?;
+    let height = frame.get_height()?;
+    if width % 2 != 0 || height % 2 != 0 {
+        return Err(FrameError::ProcessingError(format!("NV12 conversion requires even width/height, got {width}x{height}")));
+    }
+    if frame.get_plane_count()? < 2 {
+        return Err(FrameError::ProcessingError(format!("NV12 requires 2 planes, got {}", frame.get_plane_count()?)));
+    }
+    let y = frame.get_plane_data(0).map_err(|_| FrameError::ProcessingError("Missing NV12 Y plane".to_string()))?;
+    let uv = frame.get_plane_data(1).map_err(|_| FrameError::ProcessingError("Missing NV12 UV plane".to_string()))?;
+    let expected_y = width.checked_mul(height).ok_or_else(|| FrameError::ProcessingError("Frame dimensions overflow".to_string()))?;
+    let expected_uv = expected_y.checked_div(2).ok_or_else(|| FrameError::ProcessingError("Frame dimensions overflow".to_string()))?;
+    if y.len() < expected_y {
+        return Err(FrameError::ProcessingError(format!("NV12 Y plane too small: got {}, expected at least {}", y.len(), expected_y)));
+    }
+    if uv.len() < expected_uv {
+        return Err(FrameError::ProcessingError(format!("NV12 UV plane too small: got {}, expected at least {}", uv.len(), expected_uv)));
+    }
+    nv12_to_rgb_interleaved(width, height, &y[..expected_y], &uv[..expected_uv])
+}
+
+fn rgb_from_yu12_view<F: Frame + ?Sized>(frame: &F) -> FrameResult<Vec<u8>> {
+    let width = frame.get_width()?;
+    let height = frame.get_height()?;
+    if width % 2 != 0 || height % 2 != 0 {
+        return Err(FrameError::ProcessingError(format!("YU12/I420 conversion requires even width/height, got {width}x{height}")));
+    }
+    if frame.get_plane_count()? < 3 {
+        return Err(FrameError::ProcessingError(format!("YU12/I420 requires 3 planes, got {}", frame.get_plane_count()?)));
+    }
+    let y = frame.get_plane_data(0).map_err(|_| FrameError::ProcessingError("Missing YU12 Y plane".to_string()))?;
+    let u = frame.get_plane_data(1).map_err(|_| FrameError::ProcessingError("Missing YU12 U plane".to_string()))?;
+    let v = frame.get_plane_data(2).map_err(|_| FrameError::ProcessingError("Missing YU12 V plane".to_string()))?;
+    let expected_y = width.checked_mul(height).ok_or_else(|| FrameError::ProcessingError("Frame dimensions overflow".to_string()))?;
+    let expected_uv = expected_y.checked_div(4).ok_or_else(|| FrameError::ProcessingError("Frame dimensions overflow".to_string()))?;
+    if y.len() < expected_y {
+        return Err(FrameError::ProcessingError(format!("YU12 Y plane too small: got {}, expected at least {}", y.len(), expected_y)));
+    }
+    if u.len() < expected_uv {
+        return Err(FrameError::ProcessingError(format!("YU12 U plane too small: got {}, expected at least {}", u.len(), expected_uv)));
+    }
+    if v.len() < expected_uv {
+        return Err(FrameError::ProcessingError(format!("YU12 V plane too small: got {}, expected at least {}", v.len(), expected_uv)));
+    }
+    i420_to_rgb_interleaved(width, height, &y[..expected_y], &u[..expected_uv], &v[..expected_uv])
 }
 
 /// Decode JPEG bytes and re-encode them at a (typically lower) JPEG quality.
@@ -101,188 +165,6 @@ pub fn reencode_jpeg_with_quality(jpeg_data: &[u8], quality: u8) -> FrameResult<
     let (width, height) = decoded.dimensions();
     let rgb = decoded.to_rgb8().into_raw();
     encode_rgb_to_jpeg(width as usize, height as usize, &rgb, quality)
-}
-
-fn validate_has_planes(event: &CaptureEvent) -> FrameResult<()> {
-    if event.image_data.is_empty() {
-        return Err(FrameError::ProcessingError(
-            "CaptureEvent has no planes".to_string(),
-        ));
-    }
-    Ok(())
-}
-
-fn mjpg_event_to_jpeg(event: &CaptureEvent) -> FrameResult<Cow<'_, [u8]>> {
-    validate_has_planes(event)?;
-    Ok(Cow::Borrowed(&event.image_data[0]))
-}
-
-fn rgb_from_yuyv_event(event: &CaptureEvent) -> FrameResult<Vec<u8>> {
-    let width = event.width;
-    let height = event.height;
-
-    if width % 2 != 0 {
-        return Err(FrameError::ProcessingError(format!(
-            "YUYV conversion requires even width, got {width}"
-        )));
-    }
-
-    let yuyv = &event.image_data[0];
-    let expected_len = width
-        .checked_mul(height)
-        .and_then(|px| px.checked_mul(2))
-        .ok_or_else(|| FrameError::ProcessingError("Frame dimensions overflow".to_string()))?;
-
-    if yuyv.len() < expected_len {
-        return Err(FrameError::ProcessingError(format!(
-            "YUYV buffer too small: got {}, expected at least {}",
-            yuyv.len(), expected_len
-        )));
-    }
-
-    yuyv_to_rgb_interleaved(width, height, &yuyv[..expected_len])
-}
-
-fn rgb_from_nv12_event(event: &CaptureEvent) -> FrameResult<Vec<u8>> {
-    let width = event.width;
-    let height = event.height;
-
-    if width % 2 != 0 || height % 2 != 0 {
-        return Err(FrameError::ProcessingError(format!(
-            "NV12 conversion requires even width/height, got {width}x{height}"
-        )));
-    }
-    if event.image_data.len() < 2 {
-        return Err(FrameError::ProcessingError(format!(
-            "NV12 requires 2 planes, got {}",
-            event.image_data.len()
-        )));
-    }
-
-    let y = &event.image_data[0];
-    let uv = &event.image_data[1];
-    let expected_y = width
-        .checked_mul(height)
-        .ok_or_else(|| FrameError::ProcessingError("Frame dimensions overflow".to_string()))?;
-    let expected_uv = expected_y
-        .checked_div(2)
-        .ok_or_else(|| FrameError::ProcessingError("Frame dimensions overflow".to_string()))?;
-
-    if y.len() < expected_y {
-        return Err(FrameError::ProcessingError(format!(
-            "NV12 Y plane too small: got {}, expected at least {}",
-            y.len(), expected_y
-        )));
-    }
-    if uv.len() < expected_uv {
-        return Err(FrameError::ProcessingError(format!(
-            "NV12 UV plane too small: got {}, expected at least {}",
-            uv.len(), expected_uv
-        )));
-    }
-
-    nv12_to_rgb_interleaved(width, height, &y[..expected_y], &uv[..expected_uv])
-}
-
-fn rgb_from_yu12_event(event: &CaptureEvent) -> FrameResult<Vec<u8>> {
-    let width = event.width;
-    let height = event.height;
-
-    if width % 2 != 0 || height % 2 != 0 {
-        return Err(FrameError::ProcessingError(format!(
-            "YU12/I420 conversion requires even width/height, got {width}x{height}"
-        )));
-    }
-    if event.image_data.len() < 3 {
-        return Err(FrameError::ProcessingError(format!(
-            "YU12/I420 requires 3 planes, got {}",
-            event.image_data.len()
-        )));
-    }
-
-    let y = &event.image_data[0];
-    let u = &event.image_data[1];
-    let v = &event.image_data[2];
-
-    let expected_y = width
-        .checked_mul(height)
-        .ok_or_else(|| FrameError::ProcessingError("Frame dimensions overflow".to_string()))?;
-    let expected_uv = expected_y
-        .checked_div(4)
-        .ok_or_else(|| FrameError::ProcessingError("Frame dimensions overflow".to_string()))?;
-
-    if y.len() < expected_y {
-        return Err(FrameError::ProcessingError(format!(
-            "YU12 Y plane too small: got {}, expected at least {}",
-            y.len(), expected_y
-        )));
-    }
-    if u.len() < expected_uv {
-        return Err(FrameError::ProcessingError(format!(
-            "YU12 U plane too small: got {}, expected at least {}",
-            u.len(), expected_uv
-        )));
-    }
-    if v.len() < expected_uv {
-        return Err(FrameError::ProcessingError(format!(
-            "YU12 V plane too small: got {}, expected at least {}",
-            v.len(), expected_uv
-        )));
-    }
-
-    i420_to_rgb_interleaved(
-        width,
-        height,
-        &y[..expected_y],
-        &u[..expected_uv],
-        &v[..expected_uv],
-    )
-}
-
-fn rgb_from_rgb3_event(event: &CaptureEvent) -> FrameResult<Vec<u8>> {
-    let width = event.width;
-    let height = event.height;
-
-    let expected = width
-        .checked_mul(height)
-        .and_then(|px| px.checked_mul(3))
-        .ok_or_else(|| FrameError::ProcessingError("Frame dimensions overflow".to_string()))?;
-
-    let src = &event.image_data[0];
-    if src.len() < expected {
-        return Err(FrameError::ProcessingError(format!(
-            "RGB3 buffer too small: got {}, expected at least {}",
-            src.len(), expected
-        )));
-    }
-
-    Ok(src[..expected].to_vec())
-}
-
-fn rgb_from_bgr3_event(event: &CaptureEvent) -> FrameResult<Vec<u8>> {
-    let width = event.width;
-    let height = event.height;
-
-    let expected = width
-        .checked_mul(height)
-        .and_then(|px| px.checked_mul(3))
-        .ok_or_else(|| FrameError::ProcessingError("Frame dimensions overflow".to_string()))?;
-
-    let src = &event.image_data[0];
-    if src.len() < expected {
-        return Err(FrameError::ProcessingError(format!(
-            "BGR3 buffer too small: got {}, expected at least {}",
-            src.len(), expected
-        )));
-    }
-
-    let mut out = vec![0u8; expected];
-    for i in (0..expected).step_by(3) {
-        out[i] = src[i + 2];
-        out[i + 1] = src[i + 1];
-        out[i + 2] = src[i];
-    }
-    Ok(out)
 }
 
 fn encode_rgb_to_jpeg(width: usize, height: usize, rgb: &[u8], quality: u8) -> FrameResult<Vec<u8>> {

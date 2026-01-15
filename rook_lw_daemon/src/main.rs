@@ -1,5 +1,7 @@
 use rook_lw_daemon::error::RookLWResult;
+use rook_lw_daemon::image::object_detection::ObjectDetector;
 use rook_lw_daemon::image::object_detection::opencv_object_detector::OpenCVObjectDetector;
+use rook_lw_daemon::image::object_detection::onnx_object_detector::OnnxObjectDetector;
 use rook_lw_daemon::image::frame_source_factory::FrameSourceFactory;
 use rook_lw_daemon::image::fourcc::fourcc_to_string;
 use rook_lw_daemon::image::motion::motion_detector::{YPlaneMotionDetector, YPlaneRollingZMotionDetector, YPlaneBoxedAverageMotionDetector};
@@ -81,8 +83,13 @@ fn create_motion_detector() -> RookLWResult<Box<dyn YPlaneMotionDetector>> {
     Ok(Box::new(motion_detector))
 }
 
-fn create_onnx_object_detector() -> RookLWResult<rook_lw_daemon::image::object_detection::onnx_object_detector::OnnxObjectDetector> {
-    let object_detector = rook_lw_daemon::image::object_detection::onnx_object_detector::OnnxObjectDetector::new(
+fn create_object_detector() -> RookLWResult<Box<dyn ObjectDetector>> {
+    Ok(Box::new(create_onnx_object_detector()?))
+    //Ok(Box::new(create_opencv_object_detector()?))
+}
+
+fn create_onnx_object_detector() -> RookLWResult<OnnxObjectDetector> {
+    let object_detector = OnnxObjectDetector::new(
         "var/models/yolov4-tiny.onnx",
         "var/models/coco.names",
         0.15  // YOLO confidence threshold
@@ -91,7 +98,7 @@ fn create_onnx_object_detector() -> RookLWResult<rook_lw_daemon::image::object_d
     Ok(object_detector)
 }
 
-fn create_object_detector() -> RookLWResult<OpenCVObjectDetector> {
+fn create_opencv_object_detector() -> RookLWResult<OpenCVObjectDetector> {
     let object_detector = OpenCVObjectDetector::new(
         "var/models/yolov4-tiny.cfg",
         "var/models/yolov4-tiny.weights",
@@ -124,12 +131,12 @@ fn run_daemon() -> RookLWResult<()> {
     // Job that performs object detection on stored images.
     //let object_detector = create_object_detector()?;
 
-    let onnx_object_detector = create_onnx_object_detector()?;
-    info!("Created ONNX object detector");
+    let object_detector = create_object_detector()?;
+    info!("Created object detector");
 
     let mut image_detector = ImageDetector::new(
         storage_event_rx,
-        onnx_object_detector,
+        object_detector,
     );
 
     let mut mw = MotionWatcher::new(
@@ -163,22 +170,6 @@ fn run_daemon() -> RookLWResult<()> {
     }
 
 	info!("Complete");
-    Ok(())
-}
-
-fn run_test_detection() -> RookLWResult<()> {
-    init_tracing();
-
-    let image_dir = "var/images";
-    let object_detector = create_object_detector()?;
-
-    let mut batch_detector = BatchImageObjectDetector::new(
-        image_dir.to_owned(),
-        object_detector);
-    
-    info!("Created batch image object detector");
-    batch_detector.run();
-
     Ok(())
 }
 
