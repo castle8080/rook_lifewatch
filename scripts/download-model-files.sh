@@ -1,5 +1,4 @@
 #!/bin/sh
-
 set -e
 
 download_dir="var/downloads"
