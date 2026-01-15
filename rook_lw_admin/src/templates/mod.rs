@@ -1,4 +1,5 @@
 pub mod home;
+pub mod directory;
 
 use actix_web::{HttpResponse, Responder, http::header::ContentType, HttpRequest};
 use maud::Markup;

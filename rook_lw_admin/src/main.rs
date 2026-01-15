@@ -1,6 +1,6 @@
 use rook_lw_admin::controllers;
 
-use actix_files as fs;
+use actix_files::{self as fs};
 use actix_web::{App, HttpServer, middleware::Logger};
 use tracing::info;
 
@@ -15,7 +15,11 @@ async fn main() -> std::io::Result<()> {
     HttpServer::new(|| {
         App::new()
             .wrap(Logger::default())
-            .service(fs::Files::new("/images", "var/images").show_files_listing())
+            .service(
+                fs::Files::new("/images", "var/images")
+                    .show_files_listing()
+                    .files_listing_renderer(controllers::directory::sorted_listing),
+            )
             .service(controllers::home::register())
             .service(controllers::hello::register())
     })
