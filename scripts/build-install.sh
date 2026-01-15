@@ -2,6 +2,7 @@
 
 set -e
 
+# Running build and install for each sub-project
 projct_dirs="
     rook_lw_libcamera_capture
     rook_lw_daemon
@@ -17,5 +18,10 @@ for dir in $projct_dirs; do
     )
 done
 
+# Copy scripts needed for running
+cp -vf scripts/run_daemon.py dist/bin
+cp -vf scripts/start*.sh dist/bin/
+
+# Download model and 3rd party libs.
 ./scripts/download-model-files.sh
 ./scripts/install-onnxruntime.sh
