@@ -10,9 +10,9 @@ async fn main() -> std::io::Result<()> {
     let _ = tracing_subscriber::fmt::try_init();
 
     // Ensure image directory exists
-    let image_dir = "var/images";
-    std::fs::create_dir_all(image_dir)?;
-    info!("Serving images from directory: {}", image_dir);
+    let var_dir = "var";
+    std::fs::create_dir_all(var_dir)?;
+    info!("Serving var_data from directory: {}", var_dir);
 
     let protocol = "http";
     let host = "0.0.0.0";
@@ -22,7 +22,7 @@ async fn main() -> std::io::Result<()> {
         App::new()
             .wrap(Logger::default())
             .service(
-                fs::Files::new("/images", image_dir)
+                fs::Files::new("/var", var_dir)
                     .show_files_listing()
                     .files_listing_renderer(controllers::directory::sorted_listing),
             )
