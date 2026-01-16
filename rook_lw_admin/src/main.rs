@@ -1,7 +1,7 @@
 use rook_lw_admin::controllers;
 
 use actix_files::{self as fs};
-use actix_web::{App, HttpServer, middleware::Logger, web};
+use actix_web::{App, HttpServer, middleware::{Logger, Compress}, web};
 use tracing::info;
 
 #[actix_web::main]
@@ -26,6 +26,7 @@ async fn main() -> std::io::Result<()> {
     HttpServer::new(move || {
         App::new()
             .wrap(Logger::default())
+            .wrap(Compress::default())
             .service(
                 fs::Files::new("/var", var_dir)
                     .index_file("index.html")
@@ -35,6 +36,7 @@ async fn main() -> std::io::Result<()> {
             .service(web::scope("")
                 .configure(controllers::hello::register)
                 .configure(controllers::home::register)
+                .configure(controllers::process::register)
                 .service(
                     fs::Files::new("/", www_dir)
                         .index_file("index.html")
@@ -42,13 +44,6 @@ async fn main() -> std::io::Result<()> {
                         .files_listing_renderer(controllers::directory::sorted_listing),
                 )
             )
-            /*
-            .service(
-                fs::Files::new("/", www_dir)
-                    .show_files_listing()
-                    .files_listing_renderer(controllers::directory::sorted_listing),
-            )
-            */
     })
     .bind((host, port))?
     .run()
