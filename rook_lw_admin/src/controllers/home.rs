@@ -1,11 +1,14 @@
-use actix_web::{web, Responder, Scope};
-use crate::templates::{home, HtmlTemplate};
+use actix_web::{Responder, HttpResponse};
+use actix_web::http::header;
+use actix_web::web;
+use actix_web::web::ServiceConfig;
 
 async fn home() -> impl Responder {
-    HtmlTemplate(home::home_page())
+    HttpResponse::Found()
+        .append_header((header::LOCATION, "/admin"))
+        .finish()
 }
 
-pub fn register() -> Scope {
-    web::scope("")
-        .route("/", web::get().to(home))
+pub fn register(sc: &mut ServiceConfig) {
+    sc.route("/", web::get().to(home));
 }

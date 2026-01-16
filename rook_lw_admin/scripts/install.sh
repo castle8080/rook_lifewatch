@@ -3,3 +3,6 @@ set -e
 
 mkdir -p ../dist/bin
 cp -vf target/release/rook_lw_admin ../dist/bin/rook_lw_admin
+
+mkdir -p ../dist/www
+cp -rvf www/ ../dist/
