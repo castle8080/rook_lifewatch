@@ -1,4 +1,5 @@
 use rook_lw_daemon::error::RookLWResult;
+use rook_lw_daemon::events::ImageProcessingEvent;
 use rook_lw_daemon::image::object_detection::ObjectDetector;
 use rook_lw_daemon::image::object_detection::opencv_object_detector::OpenCVObjectDetector;
 use rook_lw_daemon::image::object_detection::onnx_object_detector::OnnxObjectDetector;
@@ -8,11 +9,11 @@ use rook_lw_daemon::image::motion::motion_detector::{YPlaneMotionDetector, YPlan
 use rook_lw_daemon::tasks::motion_watcher::MotionWatcher;
 use rook_lw_daemon::tasks::image_storer::ImageStorer;
 use rook_lw_daemon::tasks::image_detector::ImageDetector;
-use rook_lw_daemon::events::capture_event::CaptureEvent;
-use rook_lw_daemon::events::storage_event::StorageEvent;
 
 use tracing::{error, info};
 use tracing_subscriber::EnvFilter;
+
+use std::time::Duration;
 
 fn init_tracing() {
     let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
@@ -115,39 +116,34 @@ fn run_daemon() -> RookLWResult<()> {
 
     // MotionWatcher produces CaptureEvents; a separate worker receives and processes them.
     // Bounded provides backpressure so we don't buffer unbounded image data.
-    let (capture_event_tx, capture_event_rx) = crossbeam_channel::bounded::<CaptureEvent>(64);
+    let (motion_detected_tx, motion_detected_rx) = crossbeam_channel::bounded::<ImageProcessingEvent>(64);
 
-    // ImageStorer produces StorageEvents; ImageDetector receives and processes them.
-    let (storage_event_tx, storage_event_rx) = crossbeam_channel::bounded::<StorageEvent>(64);
+    // ImageDetector produces ImageProcessingEvents; ImageStorer receives and processes them.
+    let (object_detected_tx, object_detected_rx) = crossbeam_channel::bounded::<rook_lw_daemon::events::ImageProcessingEvent>(64);
+
+    let mut mw = MotionWatcher::new(
+        frame_source,
+        Duration::from_millis(100), // motion detect interval
+        10,     // motion watch count
+        create_motion_detector()?,
+        5,     // capture count 
+        Duration::from_millis(200), // capture interval
+        Duration::from_secs(2),    // round interval
+    )
+    .with_sender(motion_detected_tx);
+
+    // Job that performs object detection on images.
+    let object_detector = create_object_detector()?;
+    let mut image_detector = ImageDetector::new(
+        motion_detected_rx,
+        object_detector,
+    ).with_sender(object_detected_tx);   
 
     // Job that stores images to disk.
     let mut image_storer = ImageStorer::new(
         "var/images".to_owned(),
-        capture_event_rx,
-    )
-    .with_sender(storage_event_tx);
-
-    // Job that performs object detection on stored images.
-    //let object_detector = create_object_detector()?;
-
-    let object_detector = create_object_detector()?;
-    info!("Created object detector");
-
-    let mut image_detector = ImageDetector::new(
-        storage_event_rx,
-        object_detector,
+        object_detected_rx,
     );
-
-    let mut mw = MotionWatcher::new(
-        frame_source,
-        std::time::Duration::from_millis(100), // motion detect interval
-        10,     // motion watch count
-        create_motion_detector()?,
-        5,     // capture count 
-        std::time::Duration::from_millis(200), // capture interval
-        std::time::Duration::from_secs(2),    // round interval
-    )
-    .with_sender(capture_event_tx);
 
     let handles = vec![
         std::thread::spawn(move || image_storer.run()),

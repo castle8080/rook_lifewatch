@@ -1,5 +1,4 @@
-use crate::image::conversions::{frame_to_dynamic_image, dynamic_image_to_jpeg};
-use crate::image::fourcc;
+use crate::{events::ImageProcessingEvent, image::conversions::dynamic_image_to_jpeg};
 use crate::image::frame::FrameResult;
 use crate::events::capture_event::CaptureEvent;
 use crate::events::storage_event::StorageEvent;
@@ -13,12 +12,12 @@ pub type OnImageStoredCallback = Box<dyn Fn(&StorageEvent) + Send + 'static>;
 
 pub struct ImageStorer {
     storage_root: String,
-    capture_event_rx: Receiver<CaptureEvent>,
+    capture_event_rx: Receiver<ImageProcessingEvent>,
     on_image_stored: Option<OnImageStoredCallback>,
 }
 
 impl ImageStorer {
-    pub fn new(storage_root: String, capture_event_rx: Receiver<CaptureEvent>) -> Self {
+    pub fn new(storage_root: String, capture_event_rx: Receiver<ImageProcessingEvent>) -> Self {
         Self { 
             storage_root, 
             capture_event_rx,
@@ -43,26 +42,24 @@ impl ImageStorer {
     }
 
     pub fn run(&mut self) -> FrameResult<()> {
-        while let Ok(capture_event) = self.capture_event_rx.recv() {
-            self.process_capture_event(capture_event)?;
+        while let Ok(image_processing_event) = self.capture_event_rx.recv() {
+            self.process_capture_event(image_processing_event)?;
         }
         Ok(())
     }
 
-    fn process_capture_event(&self, capture_event: CaptureEvent) -> FrameResult<()> {
+    fn process_capture_event(&self, image_processing_event: ImageProcessingEvent) -> FrameResult<()> {
+
+        let capture_event = &image_processing_event.capture_event;
 
         tracing::info!(
             event_id = %capture_event.event_id,
             capture_index = capture_event.capture_index,
             motion_score = %format!("{}", capture_event.motion_score),
-            width = capture_event.width,
-            height = capture_event.height,
-            pixel_format = %fourcc::fourcc_to_string(capture_event.pixel_format),
             "Processing capture event"
         );
 
-        let image = frame_to_dynamic_image(&capture_event)?;
-        let jpeg_data = dynamic_image_to_jpeg(&image, Some(85))?;
+        let jpeg_data = dynamic_image_to_jpeg(&capture_event.image, Some(85))?;
 
         tracing::info!(
             event_id = %capture_event.event_id,
@@ -79,10 +76,20 @@ impl ImageStorer {
 
         std::fs::write(&image_path, &jpeg_data)?;
 
+        if let Some(detections) = &image_processing_event.detections {
+            tracing::info!(
+                event_id = %capture_event.event_id,
+                capture_index = capture_event.capture_index,
+                detection_count = detections.len(),
+                image_path = %image_path.display(),
+                "Stored image with detections"
+            );
+        }
+
         // Invoke the callback if one is configured
         if let Some(ref callback) = self.on_image_stored {
             let storage_event = StorageEvent {
-                capture_event,
+                capture_event: capture_event.clone(),
                 image_path,
             };
             callback(&storage_event);

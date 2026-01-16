@@ -1,17 +1,17 @@
+use std::sync::Arc;
 use std::time::Duration;
 use std::thread::sleep;
 
+use crate::image::conversions::frame_to_dynamic_image;
 use crate::image::frame::{FrameSource, FrameResult};
 use crate::image::frame_slot::FrameSlot;
 use crate::image::motion::motion_detector::{YPlaneMotionDetector, MotionDetectionScore};
-use crate::events::capture_event::CaptureEvent;
+use crate::events::{CaptureEvent, ImageProcessingEvent, OnImageProcessingEventCallback};
 
 use crossbeam_channel::Sender;
 use tracing::{info, debug, error};
 
 use uuid::Uuid;
-
-pub type OnCaptureEventCallback = Box<dyn Fn(&CaptureEvent) + Send + 'static>;
 
 struct MotionDetectionResult {
     pub event_id: Uuid,
@@ -22,7 +22,7 @@ struct MotionDetectionResult {
 
 pub struct MotionWatcher {
     frame_source: Box<dyn FrameSource + Send>,
-    on_capture_event: Option<OnCaptureEventCallback>,
+    on_image_processing_event: Option<OnImageProcessingEventCallback>,
     motion_detect_interval: Duration,
     motion_watch_count: u32,
     motion_detector: Box<dyn YPlaneMotionDetector>,
@@ -44,7 +44,7 @@ impl MotionWatcher {
     ) -> Self {
         Self { 
             frame_source,
-            on_capture_event: None,
+            on_image_processing_event: None,
             motion_detect_interval,
             motion_watch_count,
             motion_detector,
@@ -56,16 +56,16 @@ impl MotionWatcher {
 
     pub fn with_callback<F>(mut self, callback: F) -> Self
     where
-        F: Fn(&CaptureEvent) + Send + 'static,
+        F: Fn(&ImageProcessingEvent) + Send + 'static,
     {
-        self.on_capture_event = Some(Box::new(callback));
+        self.on_image_processing_event = Some(Box::new(callback));
         self
     }
 
-    pub fn with_sender(self, sender: Sender<CaptureEvent>) -> Self {
-        self.with_callback(move |capture_event| {
-            if let Err(e) = sender.send(capture_event.clone()) {
-                error!(error = %e, "Failed to send capture event");
+    pub fn with_sender(self, sender: Sender<ImageProcessingEvent>) -> Self {
+        self.with_callback(move |image_processing_event| {
+            if let Err(e) = sender.send(image_processing_event.clone()) {
+                error!(error = %e, "Failed to send image processing event");
             }
         })
     }
@@ -81,8 +81,8 @@ impl MotionWatcher {
         // Ok(())
     }
 
-    fn on_capture_event(&mut self, event: CaptureEvent) -> FrameResult<()> {
-        if let Some(ref callback) = self.on_capture_event {
+    fn on_image_processing_event(&mut self, event: ImageProcessingEvent) -> FrameResult<()> {
+        if let Some(ref callback) = self.on_image_processing_event {
             callback(&event);
         }
         Ok(())
@@ -105,7 +105,10 @@ impl MotionWatcher {
 
         // Emit initial capture events
         for capture_event in result.capture_events {
-            self.on_capture_event(capture_event)?;
+            self.on_image_processing_event(ImageProcessingEvent {
+                capture_event: capture_event.clone(),
+                detections: None,
+            })?;
         }
 
         for capture_index in 0..(self.capture_count-index_offset) {
@@ -118,14 +121,14 @@ impl MotionWatcher {
                     motion_score: result.motion_score.clone(),
                     capture_index: capture_index + index_offset, // offset because first images were from motion detection
                     capture_timestamp: chrono::Local::now(),
-                    pixel_format: self.frame_source.get_pixel_format()?,
-                    width: self.frame_source.get_width()?,
-                    height: self.frame_source.get_height()?,
-                    image_data: self.get_image_data(&*frame)?,
+                    image: Arc::new(frame_to_dynamic_image(&*frame)?),
                 }
             };
 
-            self.on_capture_event(capture_event)?;
+            self.on_image_processing_event(ImageProcessingEvent {
+                capture_event: capture_event.clone(),
+                detections: None,
+            })?;
 
             sleep(self.capture_interval);
         }
@@ -182,10 +185,7 @@ impl MotionWatcher {
                     motion_score: motion_score.clone(),
                     capture_index: 0,
                     capture_timestamp: last_timestamp,
-                    pixel_format: self.frame_source.get_pixel_format()?,
-                    width: self.frame_source.get_width()?,
-                    height: self.frame_source.get_height()?,
-                    image_data: self.get_image_data(&*last.frame())?,
+                    image: Arc::new(frame_to_dynamic_image(&*last.frame())?),
                 });
 
                 // store second image.
@@ -195,10 +195,7 @@ impl MotionWatcher {
                     motion_score: motion_score.clone(),
                     capture_index: 1,
                     capture_timestamp: current_timestamp,
-                    pixel_format: self.frame_source.get_pixel_format()?,
-                    width: self.frame_source.get_width()?,
-                    height: self.frame_source.get_height()?,
-                    image_data: self.get_image_data(&*current.frame())?,
+                    image: Arc::new(frame_to_dynamic_image(&*current.frame())?),
                 });
 
                 return Ok(Some(result));
@@ -209,17 +206,6 @@ impl MotionWatcher {
         }
 
         Ok(None)
-    }
-
-    fn get_image_data(&self, frame: &dyn crate::image::frame::Frame) -> FrameResult<Vec<Vec<u8>>> {
-        let mut image_data: Vec<Vec<u8>> = Vec::new();
-
-        for plane_index in 0..frame.get_plane_count()? {
-            let plane = frame.get_plane_data(plane_index)?;
-            image_data.push(plane.to_vec());
-        }
-
-        Ok(image_data)
     }
 
 }

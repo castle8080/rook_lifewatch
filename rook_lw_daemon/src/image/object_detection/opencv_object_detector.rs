@@ -218,7 +218,7 @@ impl ObjectDetector for OpenCVObjectDetector {
 /// Convert a DynamicImage to an OpenCV Mat (CV_8UC3, RGB order)
 fn dynamic_image_to_mat(img: &image::DynamicImage) -> opencv::Result<Mat> {
     let rgb = img.to_rgb8();
-    let (width, height) = rgb.dimensions();
+    let (_width, height) = rgb.dimensions();
     let boxed = Mat::from_slice(rgb.as_raw())?;
     let reshaped = boxed.reshape(3, height as i32)?;
     reshaped.try_clone()
