@@ -84,6 +84,10 @@ impl ImageStorer {
                 image_path = %image_path.display(),
                 "Stored image with detections"
             );
+
+            let detections_file = image_path.with_extension("detections.json");
+            let detections_json = serde_json::to_string_pretty(&detections)?;
+            std::fs::write(&detections_file, &detections_json)?;
         }
 
         // Invoke the callback if one is configured

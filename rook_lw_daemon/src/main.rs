@@ -84,8 +84,8 @@ fn create_motion_detector() -> RookLWResult<Box<dyn YPlaneMotionDetector>> {
 }
 
 fn create_object_detector() -> RookLWResult<Box<dyn ObjectDetector>> {
-    Ok(Box::new(create_onnx_object_detector()?))
-    //Ok(Box::new(create_opencv_object_detector()?))
+    //Ok(Box::new(create_onnx_object_detector()?))
+    Ok(Box::new(create_opencv_object_detector()?))
 }
 
 fn create_onnx_object_detector() -> RookLWResult<OnnxObjectDetector> {

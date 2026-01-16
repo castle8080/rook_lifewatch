@@ -67,6 +67,7 @@ impl ImageDetector {
             }
         }
 
+        // Only send event if there are detections
         if detections.len() > 0 {
             if let Some(callback) = &self.on_image_processing_event {
                 let image_processing_event = ImageProcessingEvent {
