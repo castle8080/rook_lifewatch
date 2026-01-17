@@ -1,0 +1,15 @@
+[package]
+name = "rook_lw_image_repo"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+r2d2 = "0.8.10"
+r2d2_sqlite = "0.32.0"
+rusqlite = "0.38.0"
+rook_lw_models = { path = "../rook_lw_models" }
+serde = "1.0.228"
+serde_json = "1.0.149"
+tracing = "0.1.44"
+chrono = "0.4.43"
+thiserror = "2.0.17"

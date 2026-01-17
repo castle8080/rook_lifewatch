@@ -1,29 +1,11 @@
 
 use std::collections::HashMap;
-use std::fmt;
 
 use crate::image::yplane::YPlane;
 use crate::image::frame::FrameResult;
-use crate::stats::rollingz::RollingZ;
+use crate::stats::RollingZ;
 
-use serde::{Serialize, Deserialize};
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct MotionDetectionScore {
-    pub score: f32,
-    pub detected: bool,
-    pub properties: HashMap<String, String>,
-}
-
-impl fmt::Display for MotionDetectionScore {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "MotionDetectionScore {{ score: {:.4}, detected: {}, properties: {:?} }}",
-            self.score, self.detected, self.properties
-        )
-    }
-}
+use rook_lw_models::image::MotionDetectionScore;
 
 pub trait YPlaneMotionDetector: Send {
     fn detect_motion(&mut self, a: &YPlane<'_>, b: &YPlane<'_>) -> FrameResult<MotionDetectionScore>;

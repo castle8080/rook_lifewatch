@@ -1,7 +1,5 @@
-use rook_lw_daemon::error::RookLWResult;
+use rook_lw_daemon::{RookLWResult, RookLWError};
 use rook_lw_daemon::events::ImageProcessingEvent;
-use rook_lw_daemon::repo::image_info_repository::ImageInfoRepository;
-use rook_lw_daemon::repo::image_info_repository_sqlite::ImageInfoRepositorySqlite;
 use rook_lw_daemon::image::object_detection::ObjectDetector;
 use rook_lw_daemon::image::object_detection::opencv_object_detector::OpenCVObjectDetector;
 use rook_lw_daemon::image::object_detection::onnx_object_detector::OnnxObjectDetector;
@@ -12,6 +10,8 @@ use rook_lw_daemon::image::motion::motion_detector::{YPlaneMotionDetector, YPlan
 use rook_lw_daemon::tasks::motion_watcher::MotionWatcher;
 use rook_lw_daemon::tasks::image_storer::ImageStorer;
 use rook_lw_daemon::tasks::image_detector::ImageDetector;
+
+use rook_lw_image_repo::image_info::{ImageInfoRepository, ImageInfoRepositorySqlite};
 
 use tracing::{error, info};
 use tracing_subscriber::EnvFilter;
@@ -46,7 +46,7 @@ fn create_frame_source() -> RookLWResult<Box<dyn FrameSource + Send>> {
 
     if sources.is_empty() {
 		error!("No available frame sources found");
-        return Err(rook_lw_daemon::error::RookLWError::Camera("No available frame sources found".to_owned()));
+        return Err(RookLWError::Camera("No available frame sources found".to_owned()));
     }
     else {
 		info!(source = %sources[0], "Using camera source");
@@ -58,7 +58,7 @@ fn create_frame_source() -> RookLWResult<Box<dyn FrameSource + Send>> {
 
     if pixel_format != "MJPG" {
 		error!(pixel_format = %pixel_format, "Unexpected pixel format (expected MJPG)");
-        return Err(rook_lw_daemon::error::RookLWError::Camera(format!("Expected MJPG pixel format, got {}", pixel_format)));
+        return Err(RookLWError::Camera(format!("Expected MJPG pixel format, got {}", pixel_format)));
     }
 
 	info!(width = frame_source.get_width()?, height = frame_source.get_height()?, "Frame dimensions");
@@ -112,7 +112,7 @@ fn create_opencv_object_detector() -> RookLWResult<OpenCVObjectDetector> {
 }
 
 fn create_image_info_repository() -> RookLWResult<Box<dyn ImageInfoRepository>> {
-    let repo = ImageInfoRepositorySqlite::new(
+    let repo = ImageInfoRepositorySqlite::new_from_path(
         "var/db/image_info.db"
     )?;
 

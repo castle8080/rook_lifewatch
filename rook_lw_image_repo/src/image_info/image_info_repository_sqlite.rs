@@ -1,8 +1,7 @@
-use super::image_info_repository::{ImageInfoRepository, ImageInfo};
+use super::ImageInfoRepository;
+use crate::ImageRepoResult;
 
-use crate::image::motion::motion_detector::MotionDetectionScore;
-use crate::error::RookLWResult;
-use crate::image::object_detection::Detection;
+use rook_lw_models::image::{Detection, MotionDetectionScore, ImageInfo};
 
 use rusqlite::Row;
 use tracing::info;
@@ -17,7 +16,20 @@ pub struct ImageInfoRepositorySqlite {
 }
 
 impl ImageInfoRepositorySqlite {
-    fn row_to_image_info(row: &Row, image_id: &str) -> RookLWResult<ImageInfo> {
+    
+    pub fn new(pool: Pool<SqliteConnectionManager>) -> ImageRepoResult<Self> {
+        let mut _self = Self { pool };
+        _self.initialize()?;
+        Ok(_self)
+    }
+
+    pub fn new_from_path(db_path: &str) -> ImageRepoResult<Self> {
+        ImageInfoRepositorySqlite::new(
+            ImageInfoRepositorySqlite::create_pool(db_path)?
+        )
+    }
+
+    fn row_to_image_info(row: &Row, image_id: &str) -> ImageRepoResult<ImageInfo> {
         let event_id: String = row.get(0)?;
         let event_timestamp: String = row.get(1)?;
         let motion_score_json: String = row.get(2)?;
@@ -42,44 +54,47 @@ impl ImageInfoRepositorySqlite {
             image_path,
         })
     }
-}
 
-impl ImageInfoRepositorySqlite {
-    pub fn new(db_path: &str) -> RookLWResult<Self> {
+    fn create_pool(db_path: &str) -> ImageRepoResult<Pool<SqliteConnectionManager>> {
+        // Ensure parent directory exists
         if let Some(parent) = std::path::Path::new(db_path).parent() {
             std::fs::create_dir_all(parent)?;
         }
 
+        // Create connection manager and ensure connections use WAL journal mode.
+        // This improves concurrency for reads and writes.
         let manager = SqliteConnectionManager::file(db_path)
             .with_init(|c| {
                 c.pragma_update(None, "journal_mode", &"WAL")?;
                 Ok(())
             });
-            
+
         let pool = Pool::new(manager)?;
-        {
-            let conn = pool.get()?;
-            info!("Initializing image_info_repository database at {}", db_path);
-            conn.execute_batch(r#"
-                CREATE TABLE IF NOT EXISTS image_info (
-                    image_id TEXT PRIMARY KEY,
-                    event_id TEXT NOT NULL,
-                    event_timestamp TEXT NOT NULL,
-                    motion_score TEXT NOT NULL,
-                    detections TEXT NOT NULL,
-                    capture_index INTEGER NOT NULL,
-                    capture_timestamp TEXT NOT NULL,
-                    image_path TEXT NOT NULL
-                );
-            "#)?;
-        }
-        Ok(Self { pool })
+        Ok(pool)
+    }
+
+    fn initialize(&mut self) -> ImageRepoResult<()> {
+        let conn = self.pool.get()?;
+        info!("Initializing image_info_repository database");
+        conn.execute_batch(r#"
+            CREATE TABLE IF NOT EXISTS image_info (
+                image_id TEXT PRIMARY KEY,
+                event_id TEXT NOT NULL,
+                event_timestamp TEXT NOT NULL,
+                motion_score TEXT NOT NULL,
+                detections TEXT NOT NULL,
+                capture_index INTEGER NOT NULL,
+                capture_timestamp TEXT NOT NULL,
+                image_path TEXT NOT NULL
+            );
+        "#)?;
+        Ok(())
     }
 }
 
 impl ImageInfoRepository for ImageInfoRepositorySqlite {
 
-    fn save_image_info(&self, info: &ImageInfo) -> RookLWResult<()> {
+    fn save_image_info(&self, info: &ImageInfo) -> ImageRepoResult<()> {
         let motion_score_json = serde_json::to_string(&info.motion_score)?;
         let detections_json = serde_json::to_string(&info.detections)?;
         let conn = self.pool.get()?;
@@ -110,7 +125,7 @@ impl ImageInfoRepository for ImageInfoRepositorySqlite {
         Ok(())
     }
 
-    fn get_image_info(&self, image_id: &str) -> RookLWResult<Option<ImageInfo>> {
+    fn get_image_info(&self, image_id: &str) -> ImageRepoResult<Option<ImageInfo>> {
         let conn = self.pool.get()?;
         let mut stmt = conn.prepare(
             r#"SELECT event_id, event_timestamp, motion_score, detections, capture_index, capture_timestamp, image_path

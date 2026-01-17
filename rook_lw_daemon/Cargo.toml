@@ -25,9 +25,8 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 ort = { version = "2.0.0-rc.11", features = [ "load-dynamic" ] }
 ndarray = "0.16"
-rusqlite = "0.38.0"
-r2d2 = "0.8.10"
-r2d2_sqlite = "0.32.0"
+rook_lw_models = { path = "../rook_lw_models" }
+rook_lw_image_repo = { path = "../rook_lw_image_repo" }
 
 [build-dependencies]
 pkg-config = "0.3"
@@ -37,4 +36,3 @@ version = "0.95"
 default-features = false
 features = ["videoio", "imgproc", "dnn", "imgcodecs"]
 
-rusqlite = { version = "0.31", features = ["bundled"] }

@@ -1,8 +1,9 @@
-use crate::{events::ImageProcessingEvent, image::conversions::dynamic_image_to_jpeg};
+use crate::image::conversions::dynamic_image_to_jpeg;
 use crate::image::frame::{FrameError, FrameResult};
-use crate::repo::image_info_repository::ImageInfoRepository;
-use crate::events::capture_event::CaptureEvent;
-use crate::events::storage_event::StorageEvent;
+use crate::events::{CaptureEvent, StorageEvent, ImageProcessingEvent};
+
+use rook_lw_models::image::ImageInfo;
+use rook_lw_image_repo::image_info::ImageInfoRepository;
 
 use crossbeam_channel::{Receiver, Sender};
 use tracing::error;
@@ -100,7 +101,7 @@ impl ImageStorer {
             capture_event.event_id, capture_event.capture_index
         );
 
-        let image_info = crate::repo::image_info_repository::ImageInfo {
+        let image_info = ImageInfo {
             image_id: image_id,
             event_id: capture_event.event_id.to_string(),
             event_timestamp: capture_event.event_timestamp,

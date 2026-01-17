@@ -1,6 +1,7 @@
 
 use crate::events::capture_event::CaptureEvent;
-use crate::image::object_detection::Detection;
+
+use rook_lw_models::image::Detection;
 
 #[derive(Clone, Debug)]
 pub struct ImageProcessingEvent {

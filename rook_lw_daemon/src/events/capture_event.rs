@@ -3,7 +3,7 @@ use std::sync::Arc;
 use image::DynamicImage;
 use uuid::Uuid;
 
-use crate::image::motion::motion_detector::MotionDetectionScore;
+use rook_lw_models::image::MotionDetectionScore;
 
 #[derive(Clone, Debug)]
 pub struct CaptureEvent {

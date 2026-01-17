@@ -1,2 +1,3 @@
 
-pub mod rollingz;
+mod rollingz;
+pub use rollingz::*;

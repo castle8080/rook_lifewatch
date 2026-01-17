@@ -5,8 +5,10 @@ use std::thread::sleep;
 use crate::image::conversions::frame_to_dynamic_image;
 use crate::image::frame::{FrameSource, FrameResult};
 use crate::image::frame_slot::FrameSlot;
-use crate::image::motion::motion_detector::{YPlaneMotionDetector, MotionDetectionScore};
+use crate::image::motion::motion_detector::YPlaneMotionDetector;
 use crate::events::{CaptureEvent, ImageProcessingEvent, OnImageProcessingEventCallback};
+
+use rook_lw_models::image::MotionDetectionScore;
 
 use crossbeam_channel::Sender;
 use tracing::{info, debug, error};

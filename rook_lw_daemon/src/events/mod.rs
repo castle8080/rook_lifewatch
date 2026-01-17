@@ -1,6 +1,6 @@
-pub mod capture_event;
-pub mod image_processing_event;
-pub mod storage_event;
+mod capture_event;
+mod image_processing_event;
+mod storage_event;
 
 pub use capture_event::CaptureEvent;
 pub use image_processing_event::ImageProcessingEvent;
