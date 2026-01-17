@@ -72,7 +72,7 @@ fn create_motion_detector() -> RookLWResult<Box<dyn YPlaneMotionDetector>> {
 
     let base_motion_detector = YPlaneBoxedAverageMotionDetector::new(
         50, 
-        0.95,
+        0.97,
         0.02
     );
 
