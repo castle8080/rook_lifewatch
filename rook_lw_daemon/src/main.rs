@@ -72,7 +72,7 @@ fn create_motion_detector() -> RookLWResult<Box<dyn YPlaneMotionDetector>> {
 
     let base_motion_detector = YPlaneBoxedAverageMotionDetector::new(
         50, 
-        0.97,
+        0.98,
         0.02
     );
 
@@ -133,12 +133,12 @@ fn run_daemon() -> RookLWResult<()> {
 
     let mut mw = MotionWatcher::new(
         frame_source,
-        Duration::from_millis(100), // motion detect interval
-        10,     // motion watch count
+        Duration::from_millis(200), // motion detect interval
+        20,     // motion watch count
         create_motion_detector()?,
         5,     // capture count 
         Duration::from_millis(200), // capture interval
-        Duration::from_secs(2),    // round interval
+        Duration::from_millis(500),    // round interval
     )
     .with_sender(motion_detected_tx);
 

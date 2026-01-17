@@ -72,8 +72,10 @@ impl ImageStorer {
             "Encoded JPEG"
         );
 
-        let image_path = self.build_image_path(&capture_event);
+        // The relative path from the image root.
+        let image_path_rel = self.build_image_path(&capture_event);
 
+        let image_path = PathBuf::from(&self.storage_root).join(&image_path_rel);
         if let Some(parent_dir) = image_path.parent() {
             std::fs::create_dir_all(parent_dir)?;
         }
@@ -81,6 +83,8 @@ impl ImageStorer {
         std::fs::write(&image_path, &jpeg_data)?;
 
         // Write detections to disk
+        // Todo: remove once database store is working right.
+        /*
         if let Some(detections) = &image_processing_event.detections {
             tracing::info!(
                 event_id = %capture_event.event_id,
@@ -94,6 +98,7 @@ impl ImageStorer {
             let detections_json = serde_json::to_string_pretty(&detections)?;
             std::fs::write(&detections_file, &detections_json)?;
         }
+        */
 
         // Save image info to repository
         let image_id = format!(
@@ -109,7 +114,7 @@ impl ImageStorer {
             capture_index: capture_event.capture_index,
             capture_timestamp: capture_event.capture_timestamp,
             detections: image_processing_event.detections.clone(),
-            image_path: image_path.to_string_lossy().to_string(),
+            image_path: image_path_rel.to_string_lossy().to_string(),
         };
 
         self.image_info_repository.save_image_info(&image_info)
@@ -146,6 +151,6 @@ impl ImageStorer {
             capture_event.event_id, capture_event.capture_index, motion_score
         );
 
-        PathBuf::from(&self.storage_root).join(date_dir).join(filename)
+        PathBuf::from(date_dir).join(filename)
     }
 }
