@@ -6,7 +6,9 @@ use crate::image::yplane::YPlane;
 use crate::image::frame::FrameResult;
 use crate::stats::rollingz::RollingZ;
 
-#[derive(Clone, Debug)]
+use serde::{Serialize, Deserialize};
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct MotionDetectionScore {
     pub score: f32,
     pub detected: bool,

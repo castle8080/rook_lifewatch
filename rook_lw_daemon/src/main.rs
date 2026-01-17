@@ -1,8 +1,11 @@
 use rook_lw_daemon::error::RookLWResult;
 use rook_lw_daemon::events::ImageProcessingEvent;
+use rook_lw_daemon::repo::image_info_repository::ImageInfoRepository;
+use rook_lw_daemon::repo::image_info_repository_sqlite::ImageInfoRepositorySqlite;
 use rook_lw_daemon::image::object_detection::ObjectDetector;
 use rook_lw_daemon::image::object_detection::opencv_object_detector::OpenCVObjectDetector;
 use rook_lw_daemon::image::object_detection::onnx_object_detector::OnnxObjectDetector;
+use rook_lw_daemon::image::frame::FrameSource;
 use rook_lw_daemon::image::frame_source_factory::FrameSourceFactory;
 use rook_lw_daemon::image::fourcc::fourcc_to_string;
 use rook_lw_daemon::image::motion::motion_detector::{YPlaneMotionDetector, YPlaneRollingZMotionDetector, YPlaneBoxedAverageMotionDetector};
@@ -30,12 +33,11 @@ fn init_tracing() {
         .init();
 }
 
-fn create_frame_source() -> RookLWResult<Box<dyn rook_lw_daemon::image::frame::FrameSource + Send>> {
+fn create_frame_source() -> RookLWResult<Box<dyn FrameSource + Send>> {
    // Print available frame sources at compile time
     info!(available_sources = ?FrameSourceFactory::available_sources(), "Available frame sources");
 
     let mut frame_source = FrameSourceFactory::create()?;
-
     let sources = frame_source.list_sources()?;
 
     for (i, source) in sources.iter().enumerate() {
@@ -109,6 +111,14 @@ fn create_opencv_object_detector() -> RookLWResult<OpenCVObjectDetector> {
     Ok(object_detector)
 }
 
+fn create_image_info_repository() -> RookLWResult<Box<dyn ImageInfoRepository>> {
+    let repo = ImageInfoRepositorySqlite::new(
+        "var/db/image_info.db"
+    )?;
+
+    Ok(Box::new(repo))
+}
+
 fn run_daemon() -> RookLWResult<()> {
     init_tracing();
 
@@ -140,8 +150,10 @@ fn run_daemon() -> RookLWResult<()> {
     ).with_sender(object_detected_tx);   
 
     // Job that stores images to disk.
+    let image_info_repository = create_image_info_repository()?;
     let mut image_storer = ImageStorer::new(
         "var/images".to_owned(),
+        image_info_repository,
         object_detected_rx,
     );
 

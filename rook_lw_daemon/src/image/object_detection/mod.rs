@@ -4,10 +4,10 @@ pub mod onnx_object_detector;
 
 use crate::image::frame::FrameResult;
 use image::DynamicImage;
-use serde::Serialize;
+use serde::{Serialize, Deserialize};
 
 /// A single object detection result.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Detection {
     pub class_id: i32,
     pub class_name: String,

@@ -1,5 +1,6 @@
 use crate::{events::ImageProcessingEvent, image::conversions::dynamic_image_to_jpeg};
-use crate::image::frame::FrameResult;
+use crate::image::frame::{FrameError, FrameResult};
+use crate::repo::image_info_repository::ImageInfoRepository;
 use crate::events::capture_event::CaptureEvent;
 use crate::events::storage_event::StorageEvent;
 
@@ -12,14 +13,16 @@ pub type OnImageStoredCallback = Box<dyn Fn(&StorageEvent) + Send + 'static>;
 
 pub struct ImageStorer {
     storage_root: String,
+    image_info_repository: Box<dyn ImageInfoRepository>,
     capture_event_rx: Receiver<ImageProcessingEvent>,
     on_image_stored: Option<OnImageStoredCallback>,
 }
 
 impl ImageStorer {
-    pub fn new(storage_root: String, capture_event_rx: Receiver<ImageProcessingEvent>) -> Self {
+    pub fn new(storage_root: String, image_info_repository: Box<dyn ImageInfoRepository>, capture_event_rx: Receiver<ImageProcessingEvent>) -> Self {
         Self { 
             storage_root, 
+            image_info_repository,
             capture_event_rx,
             on_image_stored: None,
         }
@@ -76,6 +79,7 @@ impl ImageStorer {
 
         std::fs::write(&image_path, &jpeg_data)?;
 
+        // Write detections to disk
         if let Some(detections) = &image_processing_event.detections {
             tracing::info!(
                 event_id = %capture_event.event_id,
@@ -89,6 +93,26 @@ impl ImageStorer {
             let detections_json = serde_json::to_string_pretty(&detections)?;
             std::fs::write(&detections_file, &detections_json)?;
         }
+
+        // Save image info to repository
+        let image_id = format!(
+            "{}_{}",
+            capture_event.event_id, capture_event.capture_index
+        );
+
+        let image_info = crate::repo::image_info_repository::ImageInfo {
+            image_id: image_id,
+            event_id: capture_event.event_id.to_string(),
+            event_timestamp: capture_event.event_timestamp,
+            motion_score: capture_event.motion_score.clone(),
+            capture_index: capture_event.capture_index,
+            capture_timestamp: capture_event.capture_timestamp,
+            detections: image_processing_event.detections.clone(),
+            image_path: image_path.to_string_lossy().to_string(),
+        };
+
+        self.image_info_repository.save_image_info(&image_info)
+            .map_err(|e| FrameError::ProcessingError(e.to_string()))?;
 
         // Invoke the callback if one is configured
         if let Some(ref callback) = self.on_image_stored {
