@@ -8,13 +8,12 @@ use crate::prodcon::{
 
 use rook_lw_models::image::ImageInfo;
 use rook_lw_image_repo::image_info::ImageInfoRepository;
-
-use std::path::PathBuf;
+use rook_lw_image_repo::image_store::ImageStoreRepository;
 
 pub trait OnImageStoredCallback : OnProduceCallback<StorageEvent> {}
 
 pub struct ImageStorer {
-    storage_root: String,
+    image_store_repository: Box<dyn ImageStoreRepository>,
     image_info_repository: Box<dyn ImageInfoRepository>,
     producer_callbacks: ProducerCallbacks<StorageEvent>,
 }
@@ -32,9 +31,9 @@ impl ConsumerTask<ImageProcessingEvent> for ImageStorer {
 }
 
 impl ImageStorer {
-    pub fn new(storage_root: String, image_info_repository: Box<dyn ImageInfoRepository>) -> Self {
+    pub fn new(image_store_repository: Box<dyn ImageStoreRepository>, image_info_repository: Box<dyn ImageInfoRepository>) -> Self {
         Self { 
-            storage_root, 
+            image_store_repository,
             image_info_repository,
             producer_callbacks: ProducerCallbacks::new(),
         }
@@ -63,30 +62,9 @@ impl ImageStorer {
         // The relative path from the image root.
         let image_path_rel = self.build_image_path(&capture_event);
 
-        let image_path = PathBuf::from(&self.storage_root).join(&image_path_rel);
-        if let Some(parent_dir) = image_path.parent() {
-            std::fs::create_dir_all(parent_dir)?;
-        }
+        // Store image data
+        self.image_store_repository.store(&image_path_rel, &jpeg_data)?;
 
-        std::fs::write(&image_path, &jpeg_data)?;
-
-        // Write detections to disk
-        // Todo: remove once database store is working right.
-        /*
-        if let Some(detections) = &image_processing_event.detections {
-            tracing::info!(
-                event_id = %capture_event.event_id,
-                capture_index = capture_event.capture_index,
-                detection_count = detections.len(),
-                image_path = %image_path.display(),
-                "Stored image with detections"
-            );
-
-            let detections_file = image_path.with_extension("detections.json");
-            let detections_json = serde_json::to_string_pretty(&detections)?;
-            std::fs::write(&detections_file, &detections_json)?;
-        }
-        */
 
         // Save image info to repository
         let image_id = format!(
@@ -102,14 +80,14 @@ impl ImageStorer {
             capture_index: capture_event.capture_index,
             capture_timestamp: capture_event.capture_timestamp,
             detections: image_processing_event.detections.clone(),
-            image_path: image_path_rel.to_string_lossy().to_string(),
+            image_path: image_path_rel.to_string(),
         };
 
         self.image_info_repository.save_image_info(&image_info)?;
 
         let storage_event = StorageEvent {
             capture_event: capture_event.clone(),
-            image_path,
+            image_path: image_path_rel,
         };
 
         self.produce(storage_event)?;
@@ -117,7 +95,7 @@ impl ImageStorer {
         Ok(())
     }
 
-    fn build_image_path(&self, capture_event: &CaptureEvent) -> PathBuf {
+    fn build_image_path(&self, capture_event: &CaptureEvent) -> String {
         let date_dir = capture_event
             .capture_timestamp
             .format("%Y-%m-%d")
@@ -132,10 +110,10 @@ impl ImageStorer {
         let motion_score = format!("{:.9}", capture_event.motion_score.score);
 
         let filename = format!(
-            "{timestamp}_{}_{}_{}.jpg",
+            "{date_dir}/{timestamp}_{}_{}_{}.jpg",
             capture_event.event_id, capture_event.capture_index, motion_score
         );
 
-        PathBuf::from(date_dir).join(filename)
+        filename
     }
 }

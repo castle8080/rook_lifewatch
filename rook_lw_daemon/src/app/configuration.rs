@@ -12,6 +12,7 @@ use crate::tasks::image_storer::ImageStorer;
 use crate::tasks::image_detector::ImageDetector;
 
 use rook_lw_image_repo::image_info::{ImageInfoRepository, ImageInfoRepositorySqlite};
+use rook_lw_image_repo::image_store::{ImageStoreRepository, ImageStoreRepositoryFile};
 
 use tracing::{error, info};
 
@@ -39,8 +40,9 @@ pub fn create_app() -> RookLWResult<App> {
 
     // Job that stores images to disk.
     let image_info_repository = create_image_info_repository()?;
+    let image_store_repository = create_image_store_repository()?;
     let image_storer = ImageStorer::new(
-        "var/images".to_owned(),
+        image_store_repository,
         image_info_repository,
     );
 
@@ -139,5 +141,11 @@ fn create_image_info_repository() -> RookLWResult<Box<dyn ImageInfoRepository>> 
     Ok(Box::new(repo))
 }
 
+fn create_image_store_repository() -> RookLWResult<Box<dyn ImageStoreRepository>> {
+    let repo = ImageStoreRepositoryFile::new(
+        "var/images".into()
+    )?;
 
+    Ok(Box::new(repo))
+}   
 
