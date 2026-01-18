@@ -1,6 +1,9 @@
 use crate::RookLWResult;
 
 use std::thread::{JoinHandle, spawn};
+use std::any::type_name;
+
+use tracing::info;
 use crossbeam_channel::Receiver;
 
 pub trait ConsumerTask<T: Send + 'static>: Send {
@@ -29,6 +32,12 @@ pub trait ConsumerTask<T: Send + 'static>: Send {
     fn spawn_listener(mut self, receiver: Receiver<T>) -> JoinHandle<RookLWResult<()>>
     where Self: Sized + 'static
     {
-        spawn(move || self.run_listener(receiver))
+        spawn(move || {
+            info!(
+                consumer_type = %type_name::<Self>(),
+                "Starting consumer listener"
+            );
+            self.run_listener(receiver)
+        })
     }
 }

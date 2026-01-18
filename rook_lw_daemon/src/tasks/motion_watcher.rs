@@ -67,6 +67,7 @@ impl MotionWatcher {
     }
 
     pub fn run(&mut self) -> RookLWResult<()> {
+        info!("Starting motion watcher");
         self.frame_source.start()?;
         loop {
             self.run_round()?;
