@@ -1,5 +1,5 @@
+use crate::RookLWResult;
 use crate::image::conversions::dynamic_image_to_jpeg;
-use crate::image::frame::{FrameError, FrameResult};
 use crate::events::{CaptureEvent, StorageEvent, ImageProcessingEvent};
 
 use rook_lw_models::image::ImageInfo;
@@ -45,14 +45,14 @@ impl ImageStorer {
         })
     }
 
-    pub fn run(&mut self) -> FrameResult<()> {
+    pub fn run(&mut self) -> RookLWResult<()> {
         while let Ok(image_processing_event) = self.capture_event_rx.recv() {
             self.process_capture_event(image_processing_event)?;
         }
         Ok(())
     }
 
-    fn process_capture_event(&self, image_processing_event: ImageProcessingEvent) -> FrameResult<()> {
+    fn process_capture_event(&self, image_processing_event: ImageProcessingEvent) -> RookLWResult<()> {
 
         let capture_event = &image_processing_event.capture_event;
 
@@ -117,8 +117,7 @@ impl ImageStorer {
             image_path: image_path_rel.to_string_lossy().to_string(),
         };
 
-        self.image_info_repository.save_image_info(&image_info)
-            .map_err(|e| FrameError::ProcessingError(e.to_string()))?;
+        self.image_info_repository.save_image_info(&image_info)?;
 
         // Invoke the callback if one is configured
         if let Some(ref callback) = self.on_image_stored {

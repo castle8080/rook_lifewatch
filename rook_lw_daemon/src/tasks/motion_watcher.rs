@@ -1,14 +1,14 @@
-use std::sync::Arc;
-use std::time::Duration;
-use std::thread::sleep;
-
+use crate::RookLWResult;
 use crate::image::conversions::frame_to_dynamic_image;
-use crate::image::frame::{FrameSource, FrameResult};
-use crate::image::frame_slot::FrameSlot;
-use crate::image::motion::motion_detector::YPlaneMotionDetector;
+use crate::image::frame::{FrameSource, FrameSlot};
+use crate::image::motion::YPlaneMotionDetector;
 use crate::events::{CaptureEvent, ImageProcessingEvent, OnImageProcessingEventCallback};
 
 use rook_lw_models::image::MotionDetectionScore;
+
+use std::sync::Arc;
+use std::time::Duration;
+use std::thread::sleep;
 
 use crossbeam_channel::Sender;
 use tracing::{info, debug, error};
@@ -72,7 +72,7 @@ impl MotionWatcher {
         })
     }
 
-    pub fn run(&mut self) -> FrameResult<()> {
+    pub fn run(&mut self) -> RookLWResult<()> {
         self.frame_source.start()?;
         loop {
             self.run_round()?;
@@ -83,14 +83,14 @@ impl MotionWatcher {
         // Ok(())
     }
 
-    fn on_image_processing_event(&mut self, event: ImageProcessingEvent) -> FrameResult<()> {
+    fn on_image_processing_event(&mut self, event: ImageProcessingEvent) -> RookLWResult<()> {
         if let Some(ref callback) = self.on_image_processing_event {
             callback(&event);
         }
         Ok(())
     }
 
-    fn run_round(&mut self) -> FrameResult<()> {
+    fn run_round(&mut self) -> RookLWResult<()> {
         match self.detect_motion()? {
             Some(motion_detection_result) => {
                 self.on_motion_detected(motion_detection_result)?;
@@ -102,7 +102,7 @@ impl MotionWatcher {
         Ok(())
     }
 
-    fn on_motion_detected(&mut self, result: MotionDetectionResult) -> FrameResult<()> {
+    fn on_motion_detected(&mut self, result: MotionDetectionResult) -> RookLWResult<()> {
         let index_offset = result.capture_events.len() as u32;
 
         // Emit initial capture events
@@ -138,7 +138,7 @@ impl MotionWatcher {
         Ok(())
     }
 
-    fn detect_motion(&mut self) -> FrameResult<Option<MotionDetectionResult>> {
+    fn detect_motion(&mut self) -> RookLWResult<Option<MotionDetectionResult>> {
         // Keep a small 2-slot ring. Each slot owns its frame and caches a YPlane.
         // YUYV: YPlane is a borrowed view (no copy). MJPG: YPlane owns decoded luma.
         let mut last = FrameSlot::from_frame(self.frame_source.next_frame()?)?;

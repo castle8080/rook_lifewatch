@@ -1,5 +1,5 @@
 
-use crate::image::frame::{FrameError, FrameResult};
+use crate::{RookLWError, RookLWResult};
 use crate::image::yplane::YPlane;
 
 /// Compute a normalized luma difference percentile score between two Y planes.
@@ -26,22 +26,22 @@ pub fn get_motion_percentile(
     b: &YPlane<'_>,
     percentile: f32,
     sample_step: usize,
-) -> FrameResult<f32> {
+) -> RookLWResult<f32> {
     if a.width != b.width || a.height != b.height {
-        return Err(FrameError::ProcessingError(format!(
+        return Err(RookLWError::Image(format!(
             "YPlane size mismatch: a={}x{}, b={}x{}",
             a.width, a.height, b.width, b.height
         )));
     }
 
     if percentile.is_nan() {
-        return Err(FrameError::ProcessingError(
+        return Err(RookLWError::Image(
             "percentile must not be NaN".to_string(),
         ));
     }
 
     if !(0.0..=1.0).contains(&percentile) {
-        return Err(FrameError::ProcessingError(
+        return Err(RookLWError::Image(
             "percentile must be in [0.0, 1.0]".to_string(),
         ));
     }
@@ -54,30 +54,30 @@ pub fn get_motion_percentile(
     for y in (0..a.height).step_by(step) {
         let a_row = y
             .checked_mul(a.stride)
-            .ok_or_else(|| FrameError::ProcessingError("YPlane index overflow".to_string()))?;
+            .ok_or_else(|| RookLWError::Image("YPlane index overflow".to_string()))?;
         let b_row = y
             .checked_mul(b.stride)
-            .ok_or_else(|| FrameError::ProcessingError("YPlane index overflow".to_string()))?;
+            .ok_or_else(|| RookLWError::Image("YPlane index overflow".to_string()))?;
 
         for x in (0..a.width).step_by(step) {
             let a_index = a_row
                 .checked_add(
                     x.checked_mul(a.pixel_step)
-                        .ok_or_else(|| FrameError::ProcessingError("YPlane index overflow".to_string()))?,
+                        .ok_or_else(|| RookLWError::Image("YPlane index overflow".to_string()))?,
                 )
-                .ok_or_else(|| FrameError::ProcessingError("YPlane index overflow".to_string()))?;
+                .ok_or_else(|| RookLWError::Image("YPlane index overflow".to_string()))?;
             let b_index = b_row
                 .checked_add(
                     x.checked_mul(b.pixel_step)
-                        .ok_or_else(|| FrameError::ProcessingError("YPlane index overflow".to_string()))?,
+                        .ok_or_else(|| RookLWError::Image("YPlane index overflow".to_string()))?,
                 )
-                .ok_or_else(|| FrameError::ProcessingError("YPlane index overflow".to_string()))?;
+                .ok_or_else(|| RookLWError::Image("YPlane index overflow".to_string()))?;
 
             let av = *a.data.get(a_index).ok_or_else(|| {
-                FrameError::ProcessingError("YPlane access out of bounds".to_string())
+                RookLWError::Image("YPlane access out of bounds".to_string())
             })?;
             let bv = *b.data.get(b_index).ok_or_else(|| {
-                FrameError::ProcessingError("YPlane access out of bounds".to_string())
+                RookLWError::Image("YPlane access out of bounds".to_string())
             })?;
 
             let diff = av.abs_diff(bv) as usize;
@@ -87,7 +87,7 @@ pub fn get_motion_percentile(
     }
 
     if sample_count == 0 {
-        return Err(FrameError::ProcessingError(
+        return Err(RookLWError::Image(
             "YPlane has zero samples".to_string(),
         ));
     }

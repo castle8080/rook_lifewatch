@@ -1,6 +1,7 @@
 use self_cell::self_cell;
 
-use crate::image::frame::{Frame, FrameResult};
+use crate::RookLWResult;
+use crate::image::frame::Frame;
 use crate::image::yplane;
 use crate::image::yplane::YPlane;
 
@@ -18,7 +19,7 @@ impl<'fs> FrameSlot<'fs> {
     ///
     /// For YUYV this will be a borrowed view into the frame data (no copy).
     /// For MJPG this will decode and own the luma buffer (one decode per frame).
-    pub fn from_frame(frame: Box<dyn Frame + 'fs>) -> FrameResult<Self> {
+    pub fn from_frame(frame: Box<dyn Frame + 'fs>) -> RookLWResult<Self> {
         // self_cell supports fallible dependent construction via `try_new`.
         FrameSlot::try_new(frame, |f| yplane::YPlane::from_frame(&**f))
     }

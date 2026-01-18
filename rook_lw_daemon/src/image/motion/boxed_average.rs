@@ -1,5 +1,5 @@
 
-use crate::image::frame::{FrameError, FrameResult};
+use crate::{RookLWError, RookLWResult};
 use crate::image::yplane::YPlane;
 
 /// Compute per-box average luma differences between two Y planes.
@@ -25,16 +25,16 @@ pub fn compute_boxed_averages(
     a: &YPlane<'_>,
     b: &YPlane<'_>,
     divisions: usize,
-) -> FrameResult<Vec<f32>> {
+) -> RookLWResult<Vec<f32>> {
     if a.width != b.width || a.height != b.height {
-        return Err(FrameError::ProcessingError(format!(
+        return Err(RookLWError::Image(format!(
             "YPlane size mismatch: a={}x{}, b={}x{}",
             a.width, a.height, b.width, b.height
         )));
     }
 
     if divisions == 0 {
-        return Err(FrameError::ProcessingError(
+        return Err(RookLWError::Image(
             "divisions must be greater than 0".to_string(),
         ));
     }
@@ -43,7 +43,7 @@ pub fn compute_boxed_averages(
     let box_height = a.height / divisions;
 
     if box_width == 0 || box_height == 0 {
-        return Err(FrameError::ProcessingError(format!(
+        return Err(RookLWError::Image(format!(
             "Image {}x{} is too small for {} divisions",
             a.width, a.height, divisions
         )));
@@ -73,30 +73,30 @@ pub fn compute_boxed_averages(
             for y in start_y..end_y {
                 let a_row = y
                     .checked_mul(a.stride)
-                    .ok_or_else(|| FrameError::ProcessingError("YPlane index overflow".to_string()))?;
+                    .ok_or_else(|| RookLWError::Image("YPlane index overflow".to_string()))?;
                 let b_row = y
                     .checked_mul(b.stride)
-                    .ok_or_else(|| FrameError::ProcessingError("YPlane index overflow".to_string()))?;
+                    .ok_or_else(|| RookLWError::Image("YPlane index overflow".to_string()))?;
 
                 for x in start_x..end_x {
                     let a_index = a_row
                         .checked_add(
                             x.checked_mul(a.pixel_step)
-                                .ok_or_else(|| FrameError::ProcessingError("YPlane index overflow".to_string()))?,
+                                .ok_or_else(|| RookLWError::Image("YPlane index overflow".to_string()))?,
                         )
-                        .ok_or_else(|| FrameError::ProcessingError("YPlane index overflow".to_string()))?;
+                        .ok_or_else(|| RookLWError::Image("YPlane index overflow".to_string()))?;
                     let b_index = b_row
                         .checked_add(
                             x.checked_mul(b.pixel_step)
-                                .ok_or_else(|| FrameError::ProcessingError("YPlane index overflow".to_string()))?,
+                                .ok_or_else(|| RookLWError::Image("YPlane index overflow".to_string()))?,
                         )
-                        .ok_or_else(|| FrameError::ProcessingError("YPlane index overflow".to_string()))?;
+                        .ok_or_else(|| RookLWError::Image("YPlane index overflow".to_string()))?;
 
                     let av = *a.data.get(a_index).ok_or_else(|| {
-                        FrameError::ProcessingError("YPlane access out of bounds".to_string())
+                        RookLWError::Image("YPlane access out of bounds".to_string())
                     })?;
                     let bv = *b.data.get(b_index).ok_or_else(|| {
-                        FrameError::ProcessingError("YPlane access out of bounds".to_string())
+                        RookLWError::Image("YPlane access out of bounds".to_string())
                     })?;
 
                     sum_a += av as u64;
@@ -106,7 +106,7 @@ pub fn compute_boxed_averages(
             }
 
             if pixel_count == 0 {
-                return Err(FrameError::ProcessingError(
+                return Err(RookLWError::Image(
                     "Box has zero pixels".to_string(),
                 ));
             }

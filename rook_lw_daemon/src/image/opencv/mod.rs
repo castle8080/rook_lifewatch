@@ -20,8 +20,8 @@
 //! println!("Frame size: {}x{}", frame.get_width()?, frame.get_height()?);
 //! ```
 
-pub mod frame;
-pub mod frame_source;
+mod opencv_frame;
+mod opencv_frame_source;
 
-pub use frame::OpenCvFrame;
-pub use frame_source::OpenCvFrameSource;
+pub use opencv_frame::OpenCvFrame;
+pub use opencv_frame_source::OpenCvFrameSource;

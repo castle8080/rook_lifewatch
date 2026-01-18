@@ -1,21 +1,22 @@
-use super::frame::{FrameError, FrameResult, FrameSource};
+use super::FrameSource;
+use crate::{RookLWResult, RookLWError};
 
 pub struct FrameSourceFactory;
 
 impl FrameSourceFactory {
 
     /// Create a frame source using the default preference order
-    pub fn create() -> FrameResult<Box<dyn FrameSource + Send>> {
+    pub fn create() -> RookLWResult<Box<dyn FrameSource + Send>> {
         let sources = Self::available_sources();
         let source_name = sources
             .first()
-            .ok_or(FrameError::NoImplementationAvailable)?;
+            .ok_or(RookLWError::Initialization("No available implementations of a FrameSource.".into()))?;
 
         Self::try_create(source_name)
     }
 
     /// Try to create a specific frame source by name
-    fn try_create(source_name: &str) -> FrameResult<Box<dyn FrameSource + Send>> {
+    fn try_create(source_name: &str) -> RookLWResult<Box<dyn FrameSource + Send>> {
         match source_name {
             "libcamera" => {
                 try_create_libcamera_source()
@@ -23,7 +24,7 @@ impl FrameSourceFactory {
             "opencv" => {
                 try_create_opencv_source()
             }
-            _ => Err(FrameError::InitializationFailed(format!(
+            _ => Err(RookLWError::Initialization(format!(
                 "unknown or disabled source: {}",
                 source_name
             ))),
@@ -41,21 +42,21 @@ impl FrameSourceFactory {
     }
 }
 
-fn try_create_libcamera_source() -> FrameResult<Box<dyn FrameSource + Send>> {
+fn try_create_libcamera_source() -> RookLWResult<Box<dyn FrameSource + Send>> {
     #[cfg(feature = "libcamera")]
     {
-        use super::libcamera::LibCameraFrameSource;
+        use crate::image::libcamera::LibCameraFrameSource;
         return Ok(Box::new(LibCameraFrameSource::new()?));
     }
     #[cfg(not(feature = "libcamera"))]
     {
-        Err(FrameError::InitializationFailed(
+        Err(RookLWError::Initialization(
             "libcamera feature not enabled".to_string(),
         ))
     }
 }
 
-fn try_create_opencv_source() -> FrameResult<Box<dyn FrameSource + Send>> {
+fn try_create_opencv_source() -> RookLWResult<Box<dyn FrameSource + Send>> {
     #[cfg(feature = "opencv")]
     {
         use super::opencv::OpenCvFrameSource;
@@ -63,7 +64,7 @@ fn try_create_opencv_source() -> FrameResult<Box<dyn FrameSource + Send>> {
     }
     #[cfg(not(feature = "opencv"))]
     {
-        Err(FrameError::InitializationFailed(
+        Err(RookLWError::Initialization(
             "opencv feature not enabled".to_string(),
         ))
     }

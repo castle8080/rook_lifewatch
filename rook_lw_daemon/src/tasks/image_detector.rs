@@ -1,5 +1,5 @@
+use crate::RookLWResult;
 use crate::events::{ImageProcessingEvent, CaptureEvent, OnImageProcessingEventCallback};
-use crate::image::frame::FrameResult;
 use crate::image::object_detection::ObjectDetector;
 
 use crossbeam_channel::{Receiver, Sender};
@@ -36,7 +36,7 @@ impl ImageDetector {
         })
     }
 
-    pub fn run(&mut self) -> FrameResult<()> {
+    pub fn run(&mut self) -> RookLWResult<()> {
         while let Ok(image_processing_event) = self.image_processing_event_rx.recv() {
             if let Err(e) = self.process_capture_event(&image_processing_event.capture_event) {
                 error!(error = %e, "Failed to process capture event");
@@ -45,7 +45,7 @@ impl ImageDetector {
         Ok(())
     }
 
-    fn process_capture_event(&mut self, capture_event: &CaptureEvent) -> FrameResult<()> {
+    fn process_capture_event(&mut self, capture_event: &CaptureEvent) -> RookLWResult<()> {
         info!(
             event_id = %capture_event.event_id,
             "Processing image for object detection"

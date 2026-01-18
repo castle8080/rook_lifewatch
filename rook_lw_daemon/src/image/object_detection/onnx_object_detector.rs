@@ -1,8 +1,8 @@
 //! Object detection using YOLO models with ONNX Runtime.
 
-use crate::image::frame::FrameResult;
+use crate::RookLWResult;
 use crate::image::object_detection::ObjectDetector;
-use super::Detection;
+use rook_lw_models::image::Detection;
 
 use anyhow::{Context, Result};
 use std::path::Path;
@@ -48,7 +48,7 @@ impl OnnxObjectDetector {
         model_path: P,
         classes_path: P,
         confidence_threshold: f32,
-    ) -> FrameResult<Self> {
+    ) -> RookLWResult<Self> {
         let model_path = model_path.as_ref();
         let classes_path = classes_path.as_ref();
 
@@ -116,7 +116,7 @@ impl OnnxObjectDetector {
     pub fn detect(
         &mut self,
         image: &image::DynamicImage,
-    ) -> FrameResult<Vec<Detection>> {
+    ) -> RookLWResult<Vec<Detection>> {
         let (width, height) = image.dimensions();
         
         // Preprocess directly from DynamicImage
@@ -188,7 +188,7 @@ impl OnnxObjectDetector {
         output_data: &[f32],
         image_width: i32,
         image_height: i32,
-    ) -> FrameResult<Vec<Detection>> {
+    ) -> RookLWResult<Vec<Detection>> {
         // YOLOv4 output format: [batch, num_detections, 5+num_classes]
         // Each detection: [center_x, center_y, width, height, objectness, class_scores...]
         let shape = output_shape;
@@ -351,7 +351,7 @@ impl ObjectDetector for OnnxObjectDetector {
     fn detect(
         &mut self,
         image: &image::DynamicImage,
-    ) -> FrameResult<Vec<Detection>> {
+    ) -> RookLWResult<Vec<Detection>> {
         self.detect(image)
     }
 }

@@ -1,10 +1,11 @@
 use std::ffi::CStr;
 use std::ptr::NonNull;
 
-use super::super::frame::{Frame, FrameError, FrameSource, FrameResult};
+use crate::{RookLWResult, RookLWError};
+use crate::image::frame::{Frame, FrameSource};
 use super::ffi;
-use super::lib_camera_frame::LibCameraFrame;
-use super::capture_request_status::CaptureRequestStatus;
+use super::LibCameraFrame;
+use super::CaptureRequestStatus;
 
 /// Safe RAII wrapper around `rook_lw_camera_capturer_t*`.
 ///
@@ -22,21 +23,21 @@ unsafe impl Send for LibCameraFrameSource {}
 
 impl LibCameraFrameSource {
 
-    pub fn new() -> FrameResult<Self> {
+    pub fn new() -> RookLWResult<Self> {
         let ptr = unsafe { ffi::rook_lw_camera_capturer_create() };
         let inner = NonNull::new(ptr).ok_or_else(|| {
-            FrameError::InitializationFailed(
+            RookLWError::Initialization(
                 "rook_lw_camera_capturer_create returned null (failed to initialize)".to_string(),
             )
         })?;
         Ok(Self { inner })
     }
 
-    pub fn camera_count(&self) -> FrameResult<u32> {
+    pub fn camera_count(&self) -> RookLWResult<u32> {
         unsafe {
             let mut count: u32 = 0;
             if ffi::rook_lw_camera_capturer_get_camera_count(self.inner.as_ptr(), &mut count as *mut u32) != 0 {
-                return Err(FrameError::ProcessingError("Failed to get camera count".to_string()));
+                return Err(RookLWError::Camera("Failed to get camera count".to_string()));
             }
             Ok(count)
         }
@@ -45,31 +46,31 @@ impl LibCameraFrameSource {
     /// Returns the camera name at `index` as an owned `String`.
     ///
     /// Returns `None` if the index is out of range or the C API returns null.
-    pub fn camera_name(&self, index: u32) -> FrameResult<String> {
+    pub fn camera_name(&self, index: u32) -> RookLWResult<String> {
         let ptr = unsafe {
             let mut out_camera_name: *const std::os::raw::c_char = std::ptr::null();
             if ffi::rook_lw_camera_capturer_get_camera_name(self.inner.as_ptr(), index, &mut out_camera_name as *mut *const std::os::raw::c_char) != 0 {
-                return Err(FrameError::ProcessingError("Failed to get camera name".to_string()));
+                return Err(RookLWError::Camera("Failed to get camera name".to_string()));
             }
             out_camera_name
         };
         if ptr.is_null() {
-            return Err(FrameError::ProcessingError("Camera name pointer is null".to_string()));
+            return Err(RookLWError::Camera("Camera name pointer is null".to_string()));
         }
         Ok(unsafe { CStr::from_ptr(ptr) }.to_string_lossy().into_owned())
     }
 
-    pub fn set_camera_source(&mut self, _source: &str) -> FrameResult<()> {
+    pub fn set_camera_source(&mut self, _source: &str) -> RookLWResult<()> {
         let result = unsafe {
             ffi::rook_lw_camera_capturer_set_camera_source(self.inner.as_ptr(), std::ffi::CString::new(_source).unwrap().as_ptr())
         };
         if result != 0 {
-            return Err(FrameError::InitializationFailed("Failed to set camera source".to_string()));
+            return Err(RookLWError::Camera("Failed to set camera source".to_string()));
         }
         Ok(())
     }
 
-    pub fn get_width(&self) -> FrameResult<u32> {
+    pub fn get_width(&self) -> RookLWResult<u32> {
         unsafe {
             let mut width: u32 = 0;
             let result = ffi::rook_lw_camera_capturer_get_width(
@@ -77,13 +78,13 @@ impl LibCameraFrameSource {
                 &mut width as *mut u32,
             );
             if result != 0 {
-                return Err(FrameError::ProcessingError("Failed to get width".to_string()));
+                return Err(RookLWError::Camera("Failed to get width".to_string()));
             }
             Ok(width)
         }
     }
 
-    pub fn get_height(&self) -> FrameResult<u32> {
+    pub fn get_height(&self) -> RookLWResult<u32> {
         unsafe {
             let mut height: u32 = 0;
             let result = ffi::rook_lw_camera_capturer_get_height(
@@ -91,7 +92,7 @@ impl LibCameraFrameSource {
                 &mut height as *mut u32,
             );
             if result != 0 {
-                return Err(FrameError::ProcessingError("Failed to get height".to_string()));
+                return Err(RookLWError::Image("Failed to get height".to_string()));
             }
             Ok(height)
         }
@@ -108,27 +109,27 @@ impl Drop for LibCameraFrameSource {
 
 impl FrameSource for LibCameraFrameSource {
 
-    fn start(&mut self) -> FrameResult<()> {
+    fn start(&mut self) -> RookLWResult<()> {
         unsafe {
             let result = ffi::rook_lw_camera_capturer_start(self.inner.as_ptr());
             if result != 0 {
-                return Err(FrameError::InitializationFailed("Failed to start camera capturer".to_string()));
+                return Err(RookLWError::Camera("Failed to start camera capturer".to_string()));
             }
             Ok(())
         }
     }
 
-    fn stop(&mut self) -> FrameResult<()> {
+    fn stop(&mut self) -> RookLWResult<()> {
         unsafe {
             let result = ffi::rook_lw_camera_capturer_stop(self.inner.as_ptr());
             if result != 0 {
-                return Err(FrameError::InitializationFailed("Failed to stop camera capturer".to_string()));
+                return Err(RookLWError::Camera("Failed to stop camera capturer".to_string()));
             }
             Ok(())
         }
     }
 
-    fn list_sources(&mut self) -> FrameResult<Vec<String>> {
+    fn list_sources(&mut self) -> RookLWResult<Vec<String>> {
         let mut sources = Vec::new();
         for i in 0..self.camera_count()? {
             let cam = self.camera_name(i)?;
@@ -137,15 +138,15 @@ impl FrameSource for LibCameraFrameSource {
         Ok(sources)
     }
 
-    fn set_source(&mut self, source: &str) -> FrameResult<()> {
+    fn set_source(&mut self, source: &str) -> RookLWResult<()> {
         self.set_camera_source(source)
     }
 
-    fn next_frame(&self) -> FrameResult<Box<dyn Frame + '_>> {
+    fn next_frame(&self) -> RookLWResult<Box<dyn Frame + '_>> {
         unsafe {
             let result = ffi::rook_lw_camera_capturer_acquire_frame(self.inner.as_ptr());
             if result.is_null() {
-                return Err(FrameError::ProcessingError("Failed to acquire frame".to_string()));
+                return Err(RookLWError::Camera("Failed to acquire frame".to_string()));
             }
 
             let frame = LibCameraFrame::new(
@@ -159,7 +160,7 @@ impl FrameSource for LibCameraFrameSource {
 
             let status = frame.status()?;
             if status != CaptureRequestStatus::CaptureRequestComplete {
-                return Err(FrameError::ProcessingError(format!(
+                return Err(RookLWError::Camera(format!(
                     "Capture request did not complete successfully: {:?}", status
                 )));
             } 
@@ -168,7 +169,7 @@ impl FrameSource for LibCameraFrameSource {
         }
     }
 
-    fn get_pixel_format(&self) -> FrameResult<u32> {
+    fn get_pixel_format(&self) -> RookLWResult<u32> {
         unsafe {
             let mut pixel_format: u32 = 0;
             let result = ffi::rook_lw_camera_capturer_get_pixel_format(
@@ -176,17 +177,17 @@ impl FrameSource for LibCameraFrameSource {
                 &mut pixel_format as *mut u32,
             );
             if result != 0 {
-                return Err(FrameError::ProcessingError("Failed to get pixel format".to_string()));
+                return Err(RookLWError::Camera("Failed to get pixel format".to_string()));
             }
             Ok(pixel_format)
         }
     }
 
-    fn get_width(&self) -> FrameResult<usize> {
+    fn get_width(&self) -> RookLWResult<usize> {
         Ok(self.get_width()? as usize)
     }
 
-    fn get_height(&self) -> FrameResult<usize> {
+    fn get_height(&self) -> RookLWResult<usize> {
         Ok(self.get_height()? as usize)
     }
 }

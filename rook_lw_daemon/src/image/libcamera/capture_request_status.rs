@@ -27,7 +27,6 @@ impl CaptureRequestStatus {
     }
 }
 
-
 impl TryFrom<i32> for CaptureRequestStatus {
     type Error = i32;
 

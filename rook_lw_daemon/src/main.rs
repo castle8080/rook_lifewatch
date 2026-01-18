@@ -1,12 +1,12 @@
 use rook_lw_daemon::{RookLWResult, RookLWError};
 use rook_lw_daemon::events::ImageProcessingEvent;
 use rook_lw_daemon::image::object_detection::ObjectDetector;
-use rook_lw_daemon::image::object_detection::opencv_object_detector::OpenCVObjectDetector;
-use rook_lw_daemon::image::object_detection::onnx_object_detector::OnnxObjectDetector;
+use rook_lw_daemon::image::object_detection::OpenCVObjectDetector;
+use rook_lw_daemon::image::object_detection::OnnxObjectDetector;
 use rook_lw_daemon::image::frame::FrameSource;
-use rook_lw_daemon::image::frame_source_factory::FrameSourceFactory;
+use rook_lw_daemon::image::frame::FrameSourceFactory;
 use rook_lw_daemon::image::fourcc::fourcc_to_string;
-use rook_lw_daemon::image::motion::motion_detector::{YPlaneMotionDetector, YPlaneRollingZMotionDetector, YPlaneBoxedAverageMotionDetector};
+use rook_lw_daemon::image::motion::{YPlaneMotionDetector, YPlaneRollingZMotionDetector, YPlaneBoxedAverageMotionDetector};
 use rook_lw_daemon::tasks::motion_watcher::MotionWatcher;
 use rook_lw_daemon::tasks::image_storer::ImageStorer;
 use rook_lw_daemon::tasks::image_detector::ImageDetector;

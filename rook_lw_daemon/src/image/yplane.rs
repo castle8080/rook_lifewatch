@@ -1,6 +1,8 @@
 use std::borrow::Cow;
 
-use super::frame::{Frame, FrameResult, FrameError};
+use crate::{RookLWResult, RookLWError};
+
+use super::frame::Frame;
 use super::fourcc;
 
 /// A read-only view over an 8-bit luma (Y) plane.
@@ -18,11 +20,9 @@ pub struct YPlane<'a> {
 
 impl YPlane<'_> {
 
-    pub fn from_frame<'a>(frame: &'a dyn Frame) -> FrameResult<YPlane<'a>> {
+    pub fn from_frame<'a>(frame: &'a dyn Frame) -> RookLWResult<YPlane<'a>> {
         if frame.get_plane_count()? < 1 {
-            return Err(FrameError::ProcessingError(
-                "Frame has no planes".to_string(),
-            ));
+            return Err(RookLWError::Image("Frame has no planes".into()));
         }
 
         let pixel_format = frame.get_pixel_format()?;
@@ -57,9 +57,7 @@ impl YPlane<'_> {
             ))
         }
         else {
-            return Err(FrameError::ProcessingError(
-                format!("Unsupported pixel format: {}", pixel_format),
-            ));
+            return Err(RookLWError::Image(format!("Unsupported pixel format: {}", pixel_format)));
         }
     }
 }

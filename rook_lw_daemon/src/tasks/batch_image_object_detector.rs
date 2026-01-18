@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
-use crate::image::frame::FrameResult;
-use crate::image::object_detection::opencv_object_detector::OpenCVObjectDetector;
+use crate::{RookLWResult, RookLWError};
+use crate::image::object_detection::OpenCVObjectDetector;
 
 use tracing::{info, error};
 use opencv::imgcodecs::imread;
@@ -65,10 +65,10 @@ impl BatchImageObjectDetector {
         unprocessed_files
     }
 
-    fn process_image(&mut self, image_path: &PathBuf, detection_file: &PathBuf) -> FrameResult<()> {
+    fn process_image(&mut self, image_path: &PathBuf, detection_file: &PathBuf) -> RookLWResult<()> {
         // Load image using OpenCV
         let image_path_str = image_path.to_str()
-            .ok_or_else(|| crate::image::frame::FrameError::ProcessingError("Invalid path".to_string()))?;
+            .ok_or_else(|| RookLWError::Image("Invalid path".to_string()))?;
         
         info!(image_path = %image_path.display(), "Processing image for object detection");
 

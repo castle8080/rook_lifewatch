@@ -1,7 +1,6 @@
 pub mod frame;
 pub mod yplane;
 pub mod fourcc;
-pub mod frame_slot;
 pub mod conversions;
 pub mod motion;
 pub mod object_detection;
@@ -10,5 +9,3 @@ pub mod object_detection;
 pub mod libcamera;
 
 pub mod opencv;
-
-pub mod frame_source_factory;

@@ -2,13 +2,13 @@
 use std::collections::HashMap;
 
 use crate::image::yplane::YPlane;
-use crate::image::frame::FrameResult;
 use crate::stats::RollingZ;
+use crate::RookLWResult;
 
 use rook_lw_models::image::MotionDetectionScore;
 
 pub trait YPlaneMotionDetector: Send {
-    fn detect_motion(&mut self, a: &YPlane<'_>, b: &YPlane<'_>) -> FrameResult<MotionDetectionScore>;
+    fn detect_motion(&mut self, a: &YPlane<'_>, b: &YPlane<'_>) -> RookLWResult<MotionDetectionScore>;
 }
 
 pub struct YPlaneBoxedAverageMotionDetector {
@@ -28,7 +28,7 @@ impl YPlaneBoxedAverageMotionDetector {
 }
 
 impl YPlaneMotionDetector for YPlaneBoxedAverageMotionDetector {
-    fn detect_motion(&mut self, a: &YPlane<'_>, b: &YPlane<'_>) -> FrameResult<MotionDetectionScore> {
+    fn detect_motion(&mut self, a: &YPlane<'_>, b: &YPlane<'_>) -> RookLWResult<MotionDetectionScore> {
         let mut scores = crate::image::motion::boxed_average::compute_boxed_averages(
             a,
             b,
@@ -68,7 +68,7 @@ impl YPlaneMotionPercentileDetector {
 }
 
 impl YPlaneMotionDetector for YPlaneMotionPercentileDetector {
-    fn detect_motion(&mut self, a: &YPlane<'_>, b: &YPlane<'_>) -> FrameResult<MotionDetectionScore> {
+    fn detect_motion(&mut self, a: &YPlane<'_>, b: &YPlane<'_>) -> RookLWResult<MotionDetectionScore> {
         let score = crate::image::motion::motion_percentile::get_motion_percentile(
             a,
             b,
@@ -96,7 +96,7 @@ pub struct YPlaneRollingZMotionDetector<T: YPlaneMotionDetector> {
 }
 
 impl<T: YPlaneMotionDetector> YPlaneRollingZMotionDetector<T> {
-    pub fn new(detector: T, rolling_z_alpha: f64, z_threshold: f32) -> FrameResult<Self> {
+    pub fn new(detector: T, rolling_z_alpha: f64, z_threshold: f32) -> RookLWResult<Self> {
         Ok(Self {
             rolling_z: RollingZ::new(rolling_z_alpha),
             z_threshold,
@@ -106,7 +106,7 @@ impl<T: YPlaneMotionDetector> YPlaneRollingZMotionDetector<T> {
 }
 
 impl<T: YPlaneMotionDetector> YPlaneMotionDetector for YPlaneRollingZMotionDetector<T> {
-    fn detect_motion(&mut self, a: &YPlane<'_>, b: &YPlane<'_>) -> FrameResult<MotionDetectionScore> {
+    fn detect_motion(&mut self, a: &YPlane<'_>, b: &YPlane<'_>) -> RookLWResult<MotionDetectionScore> {
         let mut result = self.detector.detect_motion(a, b)?;
         let z_score = self.rolling_z.update(result.score as f64) as f32;
         let detected = result.detected && z_score >= self.z_threshold;

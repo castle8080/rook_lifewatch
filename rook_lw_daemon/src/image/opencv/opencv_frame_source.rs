@@ -1,10 +1,11 @@
-use crate::image::frame::{Frame, FrameError, FrameResult, FrameSource};
+use crate::{RookLWError, RookLWResult};
+use crate::image::frame::{Frame, FrameSource};
 use crate::image::fourcc::FOURCC_BGR3;
 use opencv::prelude::*;
 use opencv::videoio::{VideoCapture, VideoCaptureTrait, VideoCaptureTraitConst, CAP_ANY};
 use std::cell::RefCell;
 
-use super::frame::OpenCvFrame;
+use super::OpenCvFrame;
 
 /// A frame source that captures images from cameras or video streams using OpenCV.
 ///
@@ -26,7 +27,7 @@ impl OpenCvFrameSource {
     /// Create a new uninitialized OpenCV frame source.
     ///
     /// Call `set_source()` to configure the capture source before use.
-    pub fn new() -> FrameResult<Self> {
+    pub fn new() -> RookLWResult<Self> {
         Ok(Self {
             source_name: RefCell::new(None),
             capture: RefCell::new(None),
@@ -35,9 +36,9 @@ impl OpenCvFrameSource {
     }
 
     /// Try to open a camera by its numeric ID.
-    fn open_camera_by_id(&self, camera_id: i32) -> FrameResult<VideoCapture> {
+    fn open_camera_by_id(&self, camera_id: i32) -> RookLWResult<VideoCapture> {
         let capture = VideoCapture::new(camera_id, CAP_ANY).map_err(|e| {
-            FrameError::InitializationFailed(format!(
+            RookLWError::Initialization(format!(
                 "Failed to open camera {}: {}",
                 camera_id, e
             ))
@@ -48,9 +49,9 @@ impl OpenCvFrameSource {
     }
 
     /// Try to open a video source by URL or file path.
-    fn open_video_source(&self, url: &str) -> FrameResult<VideoCapture> {
+    fn open_video_source(&self, url: &str) -> RookLWResult<VideoCapture> {
         let capture = VideoCapture::from_file(url, CAP_ANY).map_err(|e| {
-            FrameError::InitializationFailed(format!("Failed to open video source '{}': {}", url, e))
+            RookLWError::Initialization(format!("Failed to open video source '{}': {}", url, e))
         })?;
 
         self.verify_capture_opened(&capture, &format!("Could not open video source '{}'", url))?;
@@ -58,11 +59,11 @@ impl OpenCvFrameSource {
     }
 
     /// Verify that a VideoCapture was successfully opened.
-    fn verify_capture_opened(&self, capture: &VideoCapture, error_msg: &str) -> FrameResult<()> {
+    fn verify_capture_opened(&self, capture: &VideoCapture, error_msg: &str) -> RookLWResult<()> {
         match capture.is_opened() {
             Ok(true) => Ok(()),
-            Ok(false) => Err(FrameError::InitializationFailed(error_msg.to_string())),
-            Err(e) => Err(FrameError::InitializationFailed(format!(
+            Ok(false) => Err(RookLWError::Initialization(error_msg.to_string())),
+            Err(e) => Err(RookLWError::Initialization(format!(
                 "Failed to check capture status: {}",
                 e
             ))),
@@ -98,7 +99,7 @@ impl Drop for OpenCvFrameSource {
 unsafe impl Send for OpenCvFrameSource {}
 
 impl FrameSource for OpenCvFrameSource {
-    fn list_sources(&mut self) -> FrameResult<Vec<String>> {
+    fn list_sources(&mut self) -> RookLWResult<Vec<String>> {
         // OpenCV does not provide a portable way to enumerate available cameras.
         // This would require platform-specific APIs (e.g., V4L2 on Linux, DirectShow on Windows).
         // For now, we return a stub list with common camera indices.
@@ -110,7 +111,7 @@ impl FrameSource for OpenCvFrameSource {
         ])
     }
 
-    fn set_source(&mut self, source: &str) -> FrameResult<()> {
+    fn set_source(&mut self, source: &str) -> RookLWResult<()> {
         // Stop any existing capture
         if *self.is_started.get_mut() {
             self.stop()?;
@@ -128,10 +129,10 @@ impl FrameSource for OpenCvFrameSource {
         Ok(())
     }
 
-    fn start(&mut self) -> FrameResult<()> {
+    fn start(&mut self) -> RookLWResult<()> {
         // Verify we have a configured capture
         if self.capture.get_mut().is_none() {
-            return Err(FrameError::InitializationFailed(
+            return Err(RookLWError::Initialization(
                 "No source configured. Call set_source() first.".to_string(),
             ));
         }
@@ -143,13 +144,13 @@ impl FrameSource for OpenCvFrameSource {
         Ok(())
     }
 
-    fn stop(&mut self) -> FrameResult<()> {
+    fn stop(&mut self) -> RookLWResult<()> {
         *self.is_started.get_mut() = false;
 
         // Release the capture when stopping
         if let Some(ref mut capture) = *self.capture.get_mut() {
             capture.release().map_err(|e| {
-                FrameError::ProcessingError(format!("Failed to release capture: {}", e))
+                RookLWError::Camera(format!("Failed to release capture: {}", e))
             })?;
         }
         *self.capture.get_mut() = None;
@@ -157,68 +158,68 @@ impl FrameSource for OpenCvFrameSource {
         Ok(())
     }
 
-    fn next_frame(&self) -> FrameResult<Box<dyn Frame + '_>> {
+    fn next_frame(&self) -> RookLWResult<Box<dyn Frame + '_>> {
         // Verify capture is initialized and started
         if !*self.is_started.borrow() {
-            return Err(FrameError::Capture(
+            return Err(RookLWError::Camera(
                 "Frame source not started. Call start() first.".to_string(),
             ));
         }
 
         let mut capture_ref = self.capture.borrow_mut();
         let capture = capture_ref.as_mut().ok_or_else(|| {
-            FrameError::Capture("OpenCV capture not initialized. Call set_source() first.".to_string())
+            RookLWError::Camera("OpenCV capture not initialized. Call set_source() first.".to_string())
         })?;
 
         let mut mat = opencv::core::Mat::default();
         capture.read(&mut mat).map_err(|e| {
-            FrameError::Capture(format!("Failed to read frame: {}", e))
+            RookLWError::Camera(format!("Failed to read frame: {}", e))
         })?;
 
         if mat.empty() {
-            return Err(FrameError::Capture("Empty frame received (end of stream or capture error)".to_string()));
+            return Err(RookLWError::Camera("Empty frame received (end of stream or capture error)".to_string()));
         }
 
         let frame = OpenCvFrame::new(mat)?;
         Ok(Box::new(frame))
     }
 
-    fn get_pixel_format(&self) -> FrameResult<u32> {
+    fn get_pixel_format(&self) -> RookLWResult<u32> {
         // OpenCV VideoCapture typically returns BGR24 format by default.
         // Individual Mat frames might be converted, but the capture delivers BGR.
         Ok(FOURCC_BGR3)
     }
 
-    fn get_width(&self) -> FrameResult<usize> {
+    fn get_width(&self) -> RookLWResult<usize> {
         let capture_ref = self.capture.borrow();
         let capture = capture_ref.as_ref().ok_or_else(|| {
-            FrameError::Capture("OpenCV capture not initialized. Call set_source() first.".to_string())
+            RookLWError::Camera("OpenCV capture not initialized. Call set_source() first.".to_string())
         })?;
 
         let width = capture
             .get(opencv::videoio::CAP_PROP_FRAME_WIDTH)
-            .map_err(|e| FrameError::ProcessingError(format!("Failed to get width: {}", e)))?;
+            .map_err(|e| RookLWError::Image(format!("Failed to get width: {}", e)))?;
 
         if width <= 0.0 {
-            return Err(FrameError::ProcessingError(
+            return Err(RookLWError::Image(
                 "Failed to get valid width from capture".to_string(),
             ));
         }
         Ok(width as usize)
     }
 
-    fn get_height(&self) -> FrameResult<usize> {
+    fn get_height(&self) -> RookLWResult<usize> {
         let capture_ref = self.capture.borrow();
         let capture = capture_ref.as_ref().ok_or_else(|| {
-            FrameError::Capture("OpenCV capture not initialized. Call set_source() first.".to_string())
+            RookLWError::Camera("OpenCV capture not initialized. Call set_source() first.".to_string())
         })?;
 
         let height = capture
             .get(opencv::videoio::CAP_PROP_FRAME_HEIGHT)
-            .map_err(|e| FrameError::ProcessingError(format!("Failed to get height: {}", e)))?;
+            .map_err(|e| RookLWError::Image(format!("Failed to get height: {}", e)))?;
 
         if height <= 0.0 {
-            return Err(FrameError::ProcessingError(
+            return Err(RookLWError::Image(
                 "Failed to get valid height from capture".to_string(),
             ));
         }
