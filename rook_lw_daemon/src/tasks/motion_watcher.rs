@@ -2,16 +2,16 @@ use crate::RookLWResult;
 use crate::image::conversions::frame_to_dynamic_image;
 use crate::image::frame::{FrameSource, FrameSlot};
 use crate::image::motion::YPlaneMotionDetector;
-use crate::events::{CaptureEvent, ImageProcessingEvent, OnImageProcessingEventCallback};
+use crate::events::{CaptureEvent, ImageProcessingEvent};
+use crate::prodcon::{ProducerTask, ProducerCallbacks};
 
 use rook_lw_models::image::MotionDetectionScore;
 
 use std::sync::Arc;
 use std::time::Duration;
-use std::thread::sleep;
+use std::thread::{JoinHandle, sleep, spawn};
 
-use crossbeam_channel::Sender;
-use tracing::{info, debug, error};
+use tracing::{info, debug};
 
 use uuid::Uuid;
 
@@ -24,13 +24,19 @@ struct MotionDetectionResult {
 
 pub struct MotionWatcher {
     frame_source: Box<dyn FrameSource + Send>,
-    on_image_processing_event: Option<OnImageProcessingEventCallback>,
+    producer_callbacks: ProducerCallbacks<ImageProcessingEvent>,
     motion_detect_interval: Duration,
     motion_watch_count: u32,
     motion_detector: Box<dyn YPlaneMotionDetector>,
     capture_count: u32,
     capture_interval: Duration,
     round_interval: Duration,
+}
+
+impl ProducerTask<ImageProcessingEvent> for MotionWatcher {
+    fn get_producer_callbacks(&mut self) -> &mut ProducerCallbacks<ImageProcessingEvent> {
+        &mut self.producer_callbacks
+    }
 }
 
 impl MotionWatcher {
@@ -46,7 +52,7 @@ impl MotionWatcher {
     ) -> Self {
         Self { 
             frame_source,
-            on_image_processing_event: None,
+            producer_callbacks: ProducerCallbacks::new(),
             motion_detect_interval,
             motion_watch_count,
             motion_detector,
@@ -56,20 +62,8 @@ impl MotionWatcher {
         }
     }
 
-    pub fn with_callback<F>(mut self, callback: F) -> Self
-    where
-        F: Fn(&ImageProcessingEvent) + Send + 'static,
-    {
-        self.on_image_processing_event = Some(Box::new(callback));
-        self
-    }
-
-    pub fn with_sender(self, sender: Sender<ImageProcessingEvent>) -> Self {
-        self.with_callback(move |image_processing_event| {
-            if let Err(e) = sender.send(image_processing_event.clone()) {
-                error!(error = %e, "Failed to send image processing event");
-            }
-        })
+    pub fn start(mut self) -> JoinHandle<RookLWResult<()>> {
+        spawn(move || self.run())
     }
 
     pub fn run(&mut self) -> RookLWResult<()> {
@@ -84,10 +78,7 @@ impl MotionWatcher {
     }
 
     fn on_image_processing_event(&mut self, event: ImageProcessingEvent) -> RookLWResult<()> {
-        if let Some(ref callback) = self.on_image_processing_event {
-            callback(&event);
-        }
-        Ok(())
+        self.produce(event)
     }
 
     fn run_round(&mut self) -> RookLWResult<()> {

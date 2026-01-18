@@ -27,6 +27,9 @@ pub enum RookLWError {
     #[error("parse error: {0}")]
     Parse(String),
 
+    #[error("concurrency error: {0}")]
+    Concurrency(String),
+
     #[error("other error: {0}")]
     Other(String),
 }
@@ -58,5 +61,11 @@ impl From<serde_json::Error> for RookLWError {
 impl From<anyhow::Error> for RookLWError {
     fn from(err: anyhow::Error) -> Self {
         RookLWError::Other(format!("Anyhow error: {}", err))
+    }
+}
+
+impl<T> From<crossbeam_channel::SendError<T>> for RookLWError {
+    fn from(err: crossbeam_channel::SendError<T>) -> Self {
+        RookLWError::Concurrency(format!("Channel send error: {}", err))
     }
 }
