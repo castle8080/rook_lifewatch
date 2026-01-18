@@ -59,7 +59,7 @@ fn try_create_libcamera_source() -> RookLWResult<Box<dyn FrameSource + Send>> {
 fn try_create_opencv_source() -> RookLWResult<Box<dyn FrameSource + Send>> {
     #[cfg(feature = "opencv")]
     {
-        use super::opencv::OpenCvFrameSource;
+        use crate::image::opencv::OpenCvFrameSource;
         return Ok(Box::new(OpenCvFrameSource::new()?));
     }
     #[cfg(not(feature = "opencv"))]

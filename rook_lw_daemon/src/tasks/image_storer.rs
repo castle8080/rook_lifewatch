@@ -1,58 +1,46 @@
 use crate::RookLWResult;
 use crate::image::conversions::dynamic_image_to_jpeg;
 use crate::events::{CaptureEvent, StorageEvent, ImageProcessingEvent};
+use crate::prodcon::{
+    ProducerTask, ConsumerTask,
+    OnProduceCallback, ProducerCallbacks
+};
 
 use rook_lw_models::image::ImageInfo;
 use rook_lw_image_repo::image_info::ImageInfoRepository;
 
-use crossbeam_channel::{Receiver, Sender};
-use tracing::error;
-
 use std::path::PathBuf;
 
-pub type OnImageStoredCallback = Box<dyn Fn(&StorageEvent) + Send + 'static>;
+pub trait OnImageStoredCallback : OnProduceCallback<StorageEvent> {}
 
 pub struct ImageStorer {
     storage_root: String,
     image_info_repository: Box<dyn ImageInfoRepository>,
-    capture_event_rx: Receiver<ImageProcessingEvent>,
-    on_image_stored: Option<OnImageStoredCallback>,
+    producer_callbacks: ProducerCallbacks<StorageEvent>,
+}
+
+impl ProducerTask<StorageEvent> for ImageStorer {
+    fn get_producer_callbacks(&mut self) -> &mut ProducerCallbacks<StorageEvent> {
+        &mut self.producer_callbacks
+    }
+}
+
+impl ConsumerTask<ImageProcessingEvent> for ImageStorer {
+    fn consume(&mut self, item: ImageProcessingEvent) -> RookLWResult<()> {
+        self.process_capture_event(item)
+    }
 }
 
 impl ImageStorer {
-    pub fn new(storage_root: String, image_info_repository: Box<dyn ImageInfoRepository>, capture_event_rx: Receiver<ImageProcessingEvent>) -> Self {
+    pub fn new(storage_root: String, image_info_repository: Box<dyn ImageInfoRepository>) -> Self {
         Self { 
             storage_root, 
             image_info_repository,
-            capture_event_rx,
-            on_image_stored: None,
+            producer_callbacks: ProducerCallbacks::new(),
         }
     }
 
-    pub fn with_callback<F>(mut self, callback: F) -> Self
-    where
-        F: Fn(&StorageEvent) + Send + 'static,
-    {
-        self.on_image_stored = Some(Box::new(callback));
-        self
-    }
-
-    pub fn with_sender(self, sender: Sender<StorageEvent>) -> Self {
-        self.with_callback(move |storage_event| {
-            if let Err(e) = sender.send(storage_event.clone()) {
-                error!(error = %e, "Failed to send storage event");
-            }
-        })
-    }
-
-    pub fn run(&mut self) -> RookLWResult<()> {
-        while let Ok(image_processing_event) = self.capture_event_rx.recv() {
-            self.process_capture_event(image_processing_event)?;
-        }
-        Ok(())
-    }
-
-    fn process_capture_event(&self, image_processing_event: ImageProcessingEvent) -> RookLWResult<()> {
+    fn process_capture_event(&mut self, image_processing_event: ImageProcessingEvent) -> RookLWResult<()> {
 
         let capture_event = &image_processing_event.capture_event;
 
@@ -119,14 +107,12 @@ impl ImageStorer {
 
         self.image_info_repository.save_image_info(&image_info)?;
 
-        // Invoke the callback if one is configured
-        if let Some(ref callback) = self.on_image_stored {
-            let storage_event = StorageEvent {
-                capture_event: capture_event.clone(),
-                image_path,
-            };
-            callback(&storage_event);
-        }
+        let storage_event = StorageEvent {
+            capture_event: capture_event.clone(),
+            image_path,
+        };
+
+        self.produce(storage_event)?;
 
         Ok(())
     }
