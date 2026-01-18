@@ -63,7 +63,18 @@ impl MotionWatcher {
     }
 
     pub fn start(mut self) -> JoinHandle<RookLWResult<()>> {
-        spawn(move || self.run())
+        spawn(move || {
+            match self.run() {
+                Ok(_) => {
+                    info!("Motion watcher exiting normally");
+                    Ok(())
+                },
+                Err(e) => {
+                    info!(error = %e, "Motion watcher exiting with error");
+                    Err(e)
+                }
+            }
+        })
     }
 
     pub fn run(&mut self) -> RookLWResult<()> {

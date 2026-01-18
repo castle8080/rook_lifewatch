@@ -37,7 +37,23 @@ pub trait ConsumerTask<T: Send + 'static>: Send {
                 consumer_type = %type_name::<Self>(),
                 "Starting consumer listener"
             );
-            self.run_listener(receiver)
+            match self.run_listener(receiver) {
+                Ok(_) => {
+                    info!(
+                        consumer_type = %type_name::<Self>(),
+                        "Consumer listener exiting normally"
+                    );
+                    Ok(())
+                },
+                Err(e) => {
+                    info!(
+                        consumer_type = %type_name::<Self>(),
+                        error = %e,
+                        "Consumer listener exiting with error"
+                    );
+                    Err(e)
+                }
+            }
         })
     }
 }
