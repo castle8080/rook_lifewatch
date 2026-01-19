@@ -20,3 +20,7 @@ sysinfo = "0.37.2"
 serde = { version = "1.0.228", features = ["serde_derive"] }
 rook_lw_models = { path = "../rook_lw_models" }
 rook_lw_image_repo = { path = "../rook_lw_image_repo" }
+r2d2 = "0.8.10"
+r2d2_sqlite = "0.32.0"
+thiserror = "2.0.18"
+serde_json = "1.0.149"

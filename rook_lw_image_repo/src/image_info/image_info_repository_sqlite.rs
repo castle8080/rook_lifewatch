@@ -3,6 +3,7 @@ use crate::ImageRepoResult;
 
 use rook_lw_models::image::{Detection, MotionDetectionScore, ImageInfo};
 
+use chrono::{DateTime, Utc};
 use rusqlite::Row;
 use tracing::info;
 use rusqlite::{params};
@@ -23,14 +24,15 @@ impl ImageInfoRepositorySqlite {
         Ok(_self)
     }
 
-    fn row_to_image_info(row: &Row, image_id: &str) -> ImageRepoResult<ImageInfo> {
-        let event_id: String = row.get(0)?;
-        let event_timestamp: String = row.get(1)?;
-        let motion_score_json: String = row.get(2)?;
-        let detections_json: String = row.get(3)?;
-        let capture_index: u32 = row.get(4)?;
-        let capture_timestamp: String = row.get(5)?;
-        let image_path: String = row.get(6)?;
+    fn row_to_image_info(row: &Row) -> ImageRepoResult<ImageInfo> {
+        let image_id: String = row.get(0)?;
+        let event_id: String = row.get(1)?;
+        let event_timestamp: String = row.get(2)?;
+        let motion_score_json: String = row.get(3)?;
+        let detections_json: String = row.get(4)?;
+        let capture_index: u32 = row.get(5)?;
+        let capture_timestamp: String = row.get(6)?;
+        let image_path: String = row.get(7)?;
 
         let motion_score: MotionDetectionScore = serde_json::from_str(&motion_score_json)?;
         let detections: Option<Vec<Detection>> = serde_json::from_str(&detections_json)?;
@@ -104,14 +106,49 @@ impl ImageInfoRepository for ImageInfoRepositorySqlite {
     fn get_image_info(&self, image_id: &str) -> ImageRepoResult<Option<ImageInfo>> {
         let conn = self.pool.get()?;
         let mut stmt = conn.prepare(
-            r#"SELECT event_id, event_timestamp, motion_score, detections, capture_index, capture_timestamp, image_path
+            r#"SELECT image_id, event_id, event_timestamp, motion_score, detections, capture_index, capture_timestamp, image_path
                FROM image_info WHERE image_id = ?1"#
         )?;
         let mut rows = stmt.query(params![image_id])?;
         if let Some(row_result) = rows.next()? {
-            Ok(Some(Self::row_to_image_info(&row_result, image_id)?))
+            Ok(Some(Self::row_to_image_info(&row_result)?))
         } else {
             Ok(None)
         }
     }
+
+    fn search_image_info_by_date_range(
+        &self,
+        start: Option<DateTime<Utc>>,
+        end: Option<DateTime<Utc>>,
+        ) -> ImageRepoResult<Vec<ImageInfo>>
+    {
+        let conn = self.pool.get()?;
+        let mut query = String::from(
+            r#"SELECT image_id, event_id, event_timestamp, motion_score, detections, capture_index, capture_timestamp, image_path
+               FROM image_info WHERE 1=1"#
+        );
+        let mut params_vec: Vec<String> = Vec::new();
+
+        if let Some(start_dt) = start {
+            query.push_str(" AND datetime(event_timestamp) >= datetime(?1)");
+            params_vec.push(start_dt.to_rfc3339());
+        }
+        if let Some(end_dt) = end {
+            query.push_str(" AND datetime(event_timestamp) <= datetime(?2)");
+            params_vec.push(end_dt.to_rfc3339());
+        }
+
+        let mut stmt = conn.prepare(&query)?;
+        let mut rows = stmt.query(rusqlite::params_from_iter(params_vec.iter()))?;
+
+        let mut results: Vec<ImageInfo> = Vec::new();
+        while let Some(row_result) = rows.next()? {
+            let image_info = Self::row_to_image_info(&row_result)?;
+            results.push(image_info);
+        }
+
+        Ok(results)
+    }
+
 }

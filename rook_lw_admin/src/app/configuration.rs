@@ -1,0 +1,42 @@
+use crate::RookLWAdminResult;
+use crate::app::AppState;
+use rook_lw_image_repo::sqlite::create_pool;
+use rook_lw_image_repo::image_info::{ImageInfoRepository, ImageInfoRepositorySqlite};
+use rook_lw_image_repo::image_store::{ImageStoreRepository, ImageStoreRepositoryFile};
+
+use std::sync::Arc;
+use r2d2_sqlite::SqliteConnectionManager;
+use r2d2::Pool;
+
+pub fn create_app() -> RookLWAdminResult<AppState> {
+    let sqlite_pool = create_sqlite_pool()?;
+    let image_info_repo = create_image_info_repository(sqlite_pool)?;
+
+    let app = AppState {
+        image_info_repo: Arc::new(image_info_repo),
+        // other fields...
+    };
+
+    Ok(app)
+}
+
+fn create_sqlite_pool() -> RookLWAdminResult<Pool<SqliteConnectionManager>> {
+    let pool = create_pool("var/db/image_info.db")?;
+    Ok(pool)
+}
+
+fn create_image_info_repository(pool: Pool<SqliteConnectionManager>) -> RookLWAdminResult<Box<dyn ImageInfoRepository>> {
+    let repo = ImageInfoRepositorySqlite::new(
+        pool
+    )?;
+
+    Ok(Box::new(repo))
+}
+
+fn create_image_store_repository() -> RookLWAdminResult<Box<dyn ImageStoreRepository>> {
+    let repo = ImageStoreRepositoryFile::new(
+        "var/images".into()
+    )?;
+
+    Ok(Box::new(repo))
+}
