@@ -6,11 +6,14 @@ The goal is to capture frames from the Pi camera, detect motion, and (eventually
 
 ## Repository layout
 
-- `rook_lw_daemon/` — Main Rust daemon (motion detection / pipeline orchestration).
+- `rook_lw_daemon/` — Main Rust daemon (motion detection / objection detection / local storage / pipeline orchestration).
 - `rook_lw_libcamera_capture/` — C++ capture helper/library built on `libcamera`.
-- `rook_lw_create_sysroot/` — Scripts to build/manage ARM64 sysroots for cross-compiling.
-- `var/` — Local artifacts (images, sysroots, prompts). Not intended for releases.
-- `doc/` — Notes and design docs.
+- `rook_lw_models` - Shared rust data types models used between system components.
+- `rook_lw_image_repo` - Shared rust repository accessors for access data from `rook_lw_daemon` and `rook_lw_admin`.
+- `rook_lw_admin` - Admin app using Actix to server APIs and content over http from the Pi.
+- `rook_lw_admin_fe` - Leptos (wasm) front end web appliation served from `rook_lw_admin`.
+- `scripts` - Scripts to build and some utility scripts that get installed for running.
+- `rook_lw_create_sysroot` - This had scripts to help build a sysroot for cross compilation - it isn't working though. (The build of the sysroot works, but compiling on a Linux desktop was having issues linking correct to run on Arm.)
 
 ## Status
 
@@ -20,31 +23,14 @@ Early-stage / experimental.
 
 ### Build the daemon (native)
 
-From `rook_lw_daemon/`:
+From project root:
+  - Build and install to dist: `./scripts/build-install.py`
 
-- Debug build: `cargo build`
-- Run: `cargo run`
+Run the camera motion watcher (`rook_lw_daemon`):
+    - dist/bin/start_rook_lw_daemon.sh
 
-### Features
-
-The daemon uses Cargo features to select implementations:
-
-- `libcamera` — enable the libcamera-based capture implementation
-- `opencv` — enable OpenCV-based motion detection / processing helpers
-
-Example:
-
-- `cargo run --features opencv`
-
-(See `rook_lw_daemon/Cargo.toml` and `rook_lw_daemon/README.md` for the current feature matrix.)
-
-### Build the libcamera capture helper
-
-From `rook_lw_libcamera_capture/`:
-
-- Configure + build (default preset): `cmake --preset default && cmake --build --preset default`
-
-For cross-compilation and sysroot setup, see `rook_lw_create_sysroot/README.md`.
+Run the admin app (`rook_lw_admin`):
+    - dist/bin/start_rook_lw_admin.sh
 
 ## License
 
