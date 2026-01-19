@@ -36,6 +36,7 @@ async fn main() -> std::io::Result<()> {
             .service(web::scope("")
                 .configure(controllers::hello::register)
                 .configure(controllers::home::register)
+                .configure(controllers::image::register)
                 .configure(controllers::process::register)
                 .service(
                     fs::Files::new("/", www_dir)

@@ -18,3 +18,5 @@ tracing-log = "0.2"
 chrono = "0.4"
 sysinfo = "0.37.2"
 serde = { version = "1.0.228", features = ["serde_derive"] }
+rook_lw_models = { path = "../rook_lw_models" }
+rook_lw_image_repo = { path = "../rook_lw_image_repo" }
