@@ -4,6 +4,7 @@ use actix_web::http::StatusCode;
 
 use rook_lw_image_repo::ImageRepoError;
 use serde_json;
+use tokio::task::JoinError;
 
 pub type RookLWAdminResult<T> = Result<T, RookLWAdminError>;
 
@@ -11,6 +12,15 @@ pub type RookLWAdminResult<T> = Result<T, RookLWAdminError>;
 pub enum RookLWAdminError {
     #[error("Database error: {0}")]
     Database(String),
+
+    #[error("Concurrency error: {0}")]
+    Concurrency(String),
+}
+
+impl From<JoinError> for RookLWAdminError {
+    fn from(err: JoinError) -> Self {
+        RookLWAdminError::Concurrency(format!("Join error: {}", err))
+    }
 }
 
 impl From<ImageRepoError> for RookLWAdminError {
@@ -23,6 +33,7 @@ impl ResponseError for RookLWAdminError {
     fn status_code(&self) -> StatusCode {
         match self {
             RookLWAdminError::Database(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            RookLWAdminError::Concurrency(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 

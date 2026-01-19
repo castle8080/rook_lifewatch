@@ -1,5 +1,6 @@
 use actix_web::{Responder, HttpResponse, web};
 use actix_web::web::ServiceConfig;
+use tokio::task::spawn_blocking;
 use tracing::info;
 
 use rook_lw_models::image::{ImageInfo, ImageInfoSearchOptions};
@@ -14,8 +15,10 @@ pub async fn search_image_info(
     let repo = state.image_info_repo.clone();
     info!("In search_image_info, repo_address = {:p}, query = {:?}", &*repo, &*query);
 
-    let image_info: Vec<ImageInfo> = repo
-        .search_image_info_by_date_range(&query)?;
+    // Query is sync, so run in thread pool.
+    let image_info = spawn_blocking(move || {
+        repo.search_image_info_by_date_range(&query)
+    }).await??;
 
     Ok(HttpResponse::Ok().json(image_info))
 }
