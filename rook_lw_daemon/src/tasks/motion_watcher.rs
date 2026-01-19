@@ -11,13 +11,14 @@ use std::sync::Arc;
 use std::time::Duration;
 use std::thread::{JoinHandle, sleep, spawn};
 
+use chrono::{DateTime, FixedOffset};
 use tracing::{info, debug};
 
 use uuid::Uuid;
 
 struct MotionDetectionResult {
     pub event_id: Uuid,
-    pub event_timestamp: chrono::DateTime<chrono::Local>,
+    pub event_timestamp: DateTime<FixedOffset>,
     pub motion_score: MotionDetectionScore,
     pub capture_events: Vec<CaptureEvent>,
 }
@@ -125,7 +126,7 @@ impl MotionWatcher {
                     event_timestamp: result.event_timestamp,
                     motion_score: result.motion_score.clone(),
                     capture_index: capture_index + index_offset, // offset because first images were from motion detection
-                    capture_timestamp: chrono::Local::now(),
+                    capture_timestamp: chrono::Local::now().into(),
                     image: Arc::new(frame_to_dynamic_image(&*frame)?),
                 }
             };
@@ -145,13 +146,13 @@ impl MotionWatcher {
         // Keep a small 2-slot ring. Each slot owns its frame and caches a YPlane.
         // YUYV: YPlane is a borrowed view (no copy). MJPG: YPlane owns decoded luma.
         let mut last = FrameSlot::from_frame(self.frame_source.next_frame()?)?;
-        let mut last_timestamp = chrono::Local::now();
+        let mut last_timestamp: DateTime<FixedOffset> = chrono::Local::now().into();
 
         for _watch_index in 0..self.motion_watch_count {
             sleep(self.motion_detect_interval);
 
             let current = FrameSlot::from_frame(self.frame_source.next_frame()?)?;
-            let current_timestamp = chrono::Local::now();
+            let current_timestamp: DateTime<FixedOffset> = chrono::Local::now().into();
 
             let motion_score = self.motion_detector.detect_motion(
                 last.yplane(),

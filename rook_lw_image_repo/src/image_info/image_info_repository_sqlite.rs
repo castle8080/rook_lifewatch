@@ -1,16 +1,14 @@
 use super::ImageInfoRepository;
 use crate::ImageRepoResult;
 
-use rook_lw_models::image::{Detection, MotionDetectionScore, ImageInfo};
+use rook_lw_models::image::{Detection, MotionDetectionScore, ImageInfo, ImageInfoSearchOptions};
 
-use chrono::{DateTime, Utc};
 use rusqlite::Row;
 use tracing::info;
 use rusqlite::{params};
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use serde_json;
-use chrono::Local;
 
 pub struct ImageInfoRepositorySqlite {
     pool: Pool<SqliteConnectionManager>,
@@ -36,8 +34,8 @@ impl ImageInfoRepositorySqlite {
 
         let motion_score: MotionDetectionScore = serde_json::from_str(&motion_score_json)?;
         let detections: Option<Vec<Detection>> = serde_json::from_str(&detections_json)?;
-        let event_timestamp = chrono::DateTime::parse_from_rfc3339(&event_timestamp)?.with_timezone(&Local);
-        let capture_timestamp = chrono::DateTime::parse_from_rfc3339(&capture_timestamp)?.with_timezone(&Local);
+        let event_timestamp = chrono::DateTime::parse_from_rfc3339(&event_timestamp)?;
+        let capture_timestamp = chrono::DateTime::parse_from_rfc3339(&capture_timestamp)?;
 
         Ok(ImageInfo {
             image_id: image_id.to_string(),
@@ -65,6 +63,8 @@ impl ImageInfoRepositorySqlite {
                 capture_timestamp TEXT NOT NULL,
                 image_path TEXT NOT NULL
             );
+            CREATE INDEX IF NOT EXISTS idx_event_timestamp_dt ON image_info(datetime(event_timestamp));
+            CREATE INDEX IF NOT EXISTS idx_capture_timestamp_dt ON image_info(datetime(capture_timestamp));
         "#)?;
         Ok(())
     }
@@ -119,8 +119,7 @@ impl ImageInfoRepository for ImageInfoRepositorySqlite {
 
     fn search_image_info_by_date_range(
         &self,
-        start: Option<DateTime<Utc>>,
-        end: Option<DateTime<Utc>>,
+        options: &ImageInfoSearchOptions,
         ) -> ImageRepoResult<Vec<ImageInfo>>
     {
         let conn = self.pool.get()?;
@@ -130,12 +129,12 @@ impl ImageInfoRepository for ImageInfoRepositorySqlite {
         );
         let mut params_vec: Vec<String> = Vec::new();
 
-        if let Some(start_dt) = start {
-            query.push_str(" AND datetime(event_timestamp) >= datetime(?1)");
+        if let Some(start_dt) = &options.start_date {
+            query.push_str(" AND datetime(capture_timestamp) >= datetime(?1)");
             params_vec.push(start_dt.to_rfc3339());
         }
-        if let Some(end_dt) = end {
-            query.push_str(" AND datetime(event_timestamp) <= datetime(?2)");
+        if let Some(end_dt) = &options.end_date {
+            query.push_str(" AND datetime(capture_timestamp) <= datetime(?2)");
             params_vec.push(end_dt.to_rfc3339());
         }
 

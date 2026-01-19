@@ -1,7 +1,4 @@
-
-use chrono::{DateTime, Utc};
-
-use rook_lw_models::image::ImageInfo;
+use rook_lw_models::image::{ImageInfo, ImageInfoSearchOptions};
 
 use crate::ImageRepoResult;
 
@@ -12,7 +9,6 @@ pub trait ImageInfoRepository: Send + Sync {
 
     fn search_image_info_by_date_range(
         &self,
-        start: Option<DateTime<Utc>>,
-        end: Option<DateTime<Utc>>,
+        options: &ImageInfoSearchOptions,
         ) -> ImageRepoResult<Vec<ImageInfo>>;
 }
