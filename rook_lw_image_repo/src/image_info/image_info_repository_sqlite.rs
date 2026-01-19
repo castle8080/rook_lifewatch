@@ -23,12 +23,6 @@ impl ImageInfoRepositorySqlite {
         Ok(_self)
     }
 
-    pub fn new_from_path(db_path: &str) -> ImageRepoResult<Self> {
-        ImageInfoRepositorySqlite::new(
-            ImageInfoRepositorySqlite::create_pool(db_path)?
-        )
-    }
-
     fn row_to_image_info(row: &Row, image_id: &str) -> ImageRepoResult<ImageInfo> {
         let event_id: String = row.get(0)?;
         let event_timestamp: String = row.get(1)?;
@@ -53,24 +47,6 @@ impl ImageInfoRepositorySqlite {
             detections,
             image_path,
         })
-    }
-
-    fn create_pool(db_path: &str) -> ImageRepoResult<Pool<SqliteConnectionManager>> {
-        // Ensure parent directory exists
-        if let Some(parent) = std::path::Path::new(db_path).parent() {
-            std::fs::create_dir_all(parent)?;
-        }
-
-        // Create connection manager and ensure connections use WAL journal mode.
-        // This improves concurrency for reads and writes.
-        let manager = SqliteConnectionManager::file(db_path)
-            .with_init(|c| {
-                c.pragma_update(None, "journal_mode", &"WAL")?;
-                Ok(())
-            });
-
-        let pool = Pool::new(manager)?;
-        Ok(pool)
     }
 
     fn initialize(&mut self) -> ImageRepoResult<()> {

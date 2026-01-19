@@ -1406,6 +1406,8 @@ dependencies = [
  "opencv",
  "ort",
  "pkg-config",
+ "r2d2",
+ "r2d2_sqlite",
  "rook_lw_image_repo",
  "rook_lw_models",
  "self_cell",

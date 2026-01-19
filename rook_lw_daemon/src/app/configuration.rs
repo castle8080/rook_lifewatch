@@ -11,6 +11,7 @@ use crate::tasks::motion_watcher::MotionWatcher;
 use crate::tasks::image_storer::ImageStorer;
 use crate::tasks::image_detector::ImageDetector;
 
+use rook_lw_image_repo::sqlite::create_pool;
 use rook_lw_image_repo::image_info::{ImageInfoRepository, ImageInfoRepositorySqlite};
 use rook_lw_image_repo::image_store::{ImageStoreRepository, ImageStoreRepositoryFile};
 
@@ -18,9 +19,15 @@ use tracing::{error, info};
 
 use std::time::Duration;
 
+use r2d2::Pool;
+use r2d2_sqlite::SqliteConnectionManager;
+
 pub fn create_app() -> RookLWResult<App> {
 
     let frame_source = create_frame_source()?;
+
+    // Create SQLite connection pool
+    let db_pool = create_sqlite_pool()?;
 
     let mw = MotionWatcher::new(
         frame_source,
@@ -39,7 +46,7 @@ pub fn create_app() -> RookLWResult<App> {
     );
 
     // Job that stores images to disk.
-    let image_info_repository = create_image_info_repository()?;
+    let image_info_repository = create_image_info_repository(db_pool)?;
     let image_store_repository = create_image_store_repository()?;
     let image_storer = ImageStorer::new(
         image_store_repository,
@@ -133,9 +140,14 @@ fn create_opencv_object_detector() -> RookLWResult<OpenCVObjectDetector> {
     Ok(object_detector)
 }
 
-fn create_image_info_repository() -> RookLWResult<Box<dyn ImageInfoRepository>> {
-    let repo = ImageInfoRepositorySqlite::new_from_path(
-        "var/db/image_info.db"
+fn create_sqlite_pool() -> RookLWResult<Pool<SqliteConnectionManager>> {
+    let pool = create_pool("var/db/image_info_repository.sqlite")?;
+    Ok(pool)
+}
+
+fn create_image_info_repository(pool: Pool<SqliteConnectionManager>) -> RookLWResult<Box<dyn ImageInfoRepository>> {
+    let repo = ImageInfoRepositorySqlite::new(
+        pool
     )?;
 
     Ok(Box::new(repo))
