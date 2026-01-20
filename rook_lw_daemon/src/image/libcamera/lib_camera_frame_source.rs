@@ -97,6 +97,20 @@ impl LibCameraFrameSource {
             Ok(height)
         }
     }
+
+    pub fn get_stride(&self) -> RookLWResult<u32> {
+        unsafe {
+            let mut stride: u32 = 0;
+            let result = ffi::rook_lw_camera_capturer_get_stride(
+                self.inner.as_ptr(),
+                &mut stride as *mut u32,
+            );
+            if result != 0 {
+                return Err(RookLWError::Camera("Failed to get stride".to_string()));
+            }
+            Ok(stride)
+        }
+    }
 }
 
 impl Drop for LibCameraFrameSource {
@@ -154,6 +168,7 @@ impl FrameSource for LibCameraFrameSource {
                 self.get_pixel_format()?,
                 self.get_width()?,
                 self.get_height()?,
+                self.get_stride()?,
             )?;
 
             frame.wait_for_completion()?;

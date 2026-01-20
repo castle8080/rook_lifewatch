@@ -7,4 +7,5 @@ pub trait Frame {
     fn get_pixel_format(&self) -> RookLWResult<u32>;
     fn get_width(&self) -> RookLWResult<usize>;
     fn get_height(&self) -> RookLWResult<usize>;
+    fn get_stride(&self) -> RookLWResult<usize>;
 }

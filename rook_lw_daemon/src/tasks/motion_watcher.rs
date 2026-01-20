@@ -144,7 +144,7 @@ impl MotionWatcher {
 
     fn detect_motion(&mut self) -> RookLWResult<Option<MotionDetectionResult>> {
         // Keep a small 2-slot ring. Each slot owns its frame and caches a YPlane.
-        // YUYV: YPlane is a borrowed view (no copy). MJPG: YPlane owns decoded luma.
+        // YU12: YPlane is a borrowed view (no copy). MJPG: YPlane owns decoded luma.
         let mut last = FrameSlot::from_frame(self.frame_source.next_frame()?)?;
         let mut last_timestamp: DateTime<FixedOffset> = chrono::Local::now().into();
 

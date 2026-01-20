@@ -48,6 +48,11 @@ unsafe extern "C" {
         out_height: *mut u32,
     ) -> i32;
 
+    pub unsafe fn rook_lw_camera_capturer_get_stride(
+        capturer: *const rook_lw_camera_capturer_t,
+        out_stride: *mut u32,
+    ) -> i32;
+
     pub unsafe fn rook_lw_camera_capturer_start(
         capturer: *mut rook_lw_camera_capturer_t,
     ) -> i32;

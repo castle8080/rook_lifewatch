@@ -18,7 +18,9 @@
 
 namespace rook::lw_libcamera_capture {
 
-std::shared_ptr<libcamera::Camera> get_camera(const std::string &camera_name, libcamera::CameraManager &camera_manager)
+using namespace libcamera;
+
+std::shared_ptr<Camera> get_camera(const std::string &camera_name, CameraManager &camera_manager)
 {
 	for (auto &cam : camera_manager.cameras()) {
 		if (cam->id() == camera_name) {
@@ -133,6 +135,14 @@ void CameraCapturer::set_camera_source(const std::string &camera_name)
 		throw CameraException("Failed to allocate frame buffers", -ENOMEM);
 	}
 
+	std::cout << "Camera configured: "
+	          << "PixelFormat=" << stream_config.pixelFormat.toString()
+	          << ", Size=" << stream_config.size.toString()
+	          << ", BufferCount=" << stream_config.bufferCount
+			  << ", Stride=" << stream_config.stride
+			  << ", FrameSize=" << stream_config.frameSize
+	          << std::endl;
+
 	// Register callback for request completion.
 	_camera->requestCompleted.connect(this, &CameraCapturer::on_request_completed);
 }
@@ -162,8 +172,6 @@ uint32_t CameraCapturer::get_width() {
 }
 
 uint32_t CameraCapturer::get_height() {
-	using namespace libcamera;
-
 	if (!_camera || !_config) {
 		throw CameraException("Camera source not set", -EINVAL);
 	}
@@ -171,6 +179,16 @@ uint32_t CameraCapturer::get_height() {
 	StreamConfiguration &stream_config = _config->at(0);
 
 	return stream_config.size.height;
+}
+
+uint32_t CameraCapturer::get_stride() {
+	if (!_camera || !_config) {
+		throw CameraException("Camera source not set", -EINVAL);
+	}
+
+	StreamConfiguration &stream_config = _config->at(0);
+
+	return stream_config.stride;
 }
 
 void CameraCapturer::start()
@@ -209,8 +227,6 @@ void CameraCapturer::stop()
 
 int CameraCapturer::checkout_frame_buffer_index()
 {
-	using namespace libcamera;
-
 	if (!_camera || !_allocator || !_config) {
 		throw CameraException("Camera source not set", -EINVAL);
 	}
@@ -253,8 +269,6 @@ void CameraCapturer::release_request_resources(CaptureRequest* request)
 
 std::shared_ptr<CaptureRequest> CameraCapturer::acquire_frame()
 {
-	using namespace libcamera;
-
 	if (!_camera || !_allocator || !_config) {
 		throw CameraException("Camera source not set", -EINVAL);
 	}
@@ -273,7 +287,7 @@ std::shared_ptr<CaptureRequest> CameraCapturer::acquire_frame()
 		throw CameraException("No available frame buffers", -EIO);
 	}
 
-	std::shared_ptr<libcamera::Request> request = std::move(_camera->createRequest(_next_request_sequence++));
+	std::shared_ptr<Request> request = std::move(_camera->createRequest(_next_request_sequence++));
 	if (request->addBuffer(stream, buffers[frame_buffer_index].get()) != 0) {
 		return_frame_buffer_index(frame_buffer_index);
 		throw CameraException("Failed to add buffer to request", -EIO);
@@ -302,7 +316,7 @@ std::shared_ptr<CaptureRequest> CameraCapturer::acquire_frame()
 	return capture_request;
 }
 
-void CameraCapturer::on_request_completed(libcamera::Request *request) {
+void CameraCapturer::on_request_completed(Request *request) {
 	if (!request) {
 		return;
 	}
@@ -313,7 +327,7 @@ void CameraCapturer::on_request_completed(libcamera::Request *request) {
 		auto value = std::move(it->second);
 		_requests.erase(it);
 
-		if (request->status() == libcamera::Request::RequestCancelled) {
+		if (request->status() == Request::RequestCancelled) {
 			value->on_request_cancelled();
 		}
 		else {

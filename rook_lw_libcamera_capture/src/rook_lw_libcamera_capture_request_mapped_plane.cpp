@@ -34,23 +34,24 @@ CaptureRequestMappedPlane::CaptureRequestMappedPlane(const libcamera::FrameBuffe
         return;
     }
 
-    // Make sure that the offset is aligned to page size for mmap.
-    // This is necessary because mmap requires the offset to be page-aligned.
-    // Failure to do so will result in EINVAL error.
+    // Align the offset down to the nearest page boundary.
+    // This works by removing the lower bits of the offset that are less than the page size.
+    // mmap fails if you try to directly map with a non-page-aligned offset.
     size_t page = sysconf(_SC_PAGESIZE);
     off_t aligned_offset = plane.offset & ~(page - 1);
     size_t delta = plane.offset - aligned_offset;
-
-    _length = plane.length + delta;
-    _data = mmap(nullptr, _length, PROT_READ, MAP_SHARED, fd, aligned_offset);
-
-    // Incorrect code here.
-    //_length = plane.length;
-    //_data = mmap(nullptr, _length, PROT_READ, MAP_SHARED, fd, plane.offset);
+    size_t map_length = plane.length + delta;
+    _data = mmap(nullptr, map_length, PROT_READ, MAP_SHARED, fd, aligned_offset);
 
     if (_data == MAP_FAILED) {
         throw CameraException("Failed to mmap plane: " + std::string(std::system_error(errno, std::generic_category()).what()), errno);
     }
+
+    // Store the logical data length (from the original offset).
+    _length = plane.length;
+
+    // Store the delta to adjust the data pointer when returning data.
+    _data_delta = delta;
 }
 
 CaptureRequestMappedPlane::~CaptureRequestMappedPlane()
@@ -61,6 +62,7 @@ CaptureRequestMappedPlane::~CaptureRequestMappedPlane()
 
     _data = nullptr;
     _length = 0;
+    _data_delta = 0;
 }
 
 size_t CaptureRequestMappedPlane::get_length() {
@@ -68,7 +70,9 @@ size_t CaptureRequestMappedPlane::get_length() {
 }
 
 void* CaptureRequestMappedPlane::get_data() {
-    return _data;
+    // Adjust the data pointer by the delta to get the correct starting point.
+    // This occurs because we may have mapped from a page-aligned offset.
+    return static_cast<char*>(_data) + _data_delta;
 }
 
 } // namespace rook::lw_libcamera_capture

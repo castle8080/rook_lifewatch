@@ -67,6 +67,10 @@ int32_t rook_lw_camera_capturer_get_height(
 	rook_lw_camera_capturer_t *capturer,
 	uint32_t *out_height);
 
+int32_t rook_lw_camera_capturer_get_stride(
+	rook_lw_camera_capturer_t *capturer,
+	uint32_t *out_stride);
+
 rook_lw_capture_request_t *rook_lw_camera_capturer_acquire_frame(
 	rook_lw_camera_capturer_t *capturer);
 
