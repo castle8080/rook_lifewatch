@@ -54,6 +54,8 @@ public:
 
     void set_camera_source(const std::string &camera_name, uint32_t required_buffer_size = 1);
 	
+	std::string get_camera_detail();
+
 	std::shared_ptr<CaptureRequest> acquire_frame();
 
 	void start();

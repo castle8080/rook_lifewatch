@@ -121,6 +121,34 @@ extern "C" int32_t rook_lw_camera_capturer_set_camera_source(
     }
 }
 
+extern "C" int32_t rook_lw_camera_capturer_get_camera_detail(
+    rook_lw_camera_capturer_t *capturer,
+    char **out_camera_detail)
+{
+    if (!capturer || !out_camera_detail) {
+        return static_cast<int32_t>(-EINVAL);
+    }
+
+    try {
+        std::string detail = capturer->impl.get_camera_detail();
+        char* detail_cstr = static_cast<char*>(std::malloc(detail.size() + 1));
+        if (!detail_cstr) {
+            return static_cast<int32_t>(-ENOMEM);
+        }
+        std::strcpy(detail_cstr, detail.c_str());
+        *out_camera_detail = detail_cstr;
+        return 0; // Success
+    }
+    catch (const rook::lw_libcamera_capture::CameraException &e) {
+        std::cerr << "CameraException caught in rook_lw_camera_capturer_get_camera_detail: " << e.what() << std::endl;
+        return (e.code() < 0) ? static_cast<int32_t>(e.code()) : static_cast<int32_t>(-EIO);
+    }
+    catch (...) {
+        std::cerr << "Unknown exception caught in rook_lw_camera_capturer_get_camera_detail" << std::endl;
+        return static_cast<int32_t>(-EIO);
+    }
+}
+
 extern "C" int32_t rook_lw_camera_capturer_get_pixel_format(
     rook_lw_camera_capturer_t *capturer,
     uint32_t *out_pixel_format)

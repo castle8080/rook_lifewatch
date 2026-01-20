@@ -8,6 +8,7 @@
 #include <mutex>
 #include <string>
 #include <vector>
+#include <sstream>
 
 #include <libcamera/camera.h>
 #include <libcamera/camera_manager.h>
@@ -79,8 +80,6 @@ void CameraCapturer::reset_camera()
 
 void CameraCapturer::set_camera_source(const std::string &camera_name, uint32_t required_buffer_size)
 {
-	using namespace libcamera;
-
 	if (_camera) {
 		throw CameraException("Camera source already set", -EINVAL);
 	}
@@ -139,13 +138,46 @@ void CameraCapturer::set_camera_source(const std::string &camera_name, uint32_t 
 			  << ", FrameSize=" << stream_config.frameSize
 	          << std::endl;
 
+
+
 	// Register callback for request completion.
 	_camera->requestCompleted.connect(this, &CameraCapturer::on_request_completed);
 }
 
-uint32_t CameraCapturer::get_pixel_format() {
-	using namespace libcamera;
+/// @brief Returns camera details and diagnostics information.
+/// @return 
+std::string CameraCapturer::get_camera_detail() {
+	if (!_camera || !_config) {
+		return "No camera source set.";
+	}
 
+	std::stringstream out;
+	out << "Camera ID: " << _camera->id() << std::endl;
+
+	const ControlInfoMap &controls = _camera->controls();
+	out << "Supported Controls:" << std::endl;
+	for (const auto &[id, info] : controls) {
+		out << " * " << id->name() << " : " << info.toString() << std::endl;
+	}
+
+	const ControlList &properties = _camera->properties();
+	out << "Camera Properties:" << std::endl;
+	for (const auto &[id, info] : properties) {
+		out << " * "  << id << " : " << info.toString() << std::endl;
+	}
+
+	StreamConfiguration &stream_config = _config->at(0);
+	out << "Stream Configuration:" << std::endl;
+	out << " * Pixel Format: " << stream_config.pixelFormat.toString() << std::endl;
+	out << " * Size: " << stream_config.size.toString() << std::endl;
+	out << " * Stride: " << stream_config.stride << std::endl;
+	out << " * Frame Size: " << stream_config.frameSize << std::endl;
+	out << " * Buffer Count: " << stream_config.bufferCount << std::endl;
+
+	return out.str();
+}
+
+uint32_t CameraCapturer::get_pixel_format() {
 	if (!_camera || !_config) {
 		throw CameraException("Camera source not set", -EINVAL);
 	}
@@ -156,8 +188,6 @@ uint32_t CameraCapturer::get_pixel_format() {
 }
 
 uint32_t CameraCapturer::get_width() {
-	using namespace libcamera;
-
 	if (!_camera || !_config) {
 		throw CameraException("Camera source not set", -EINVAL);
 	}
