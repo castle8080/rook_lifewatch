@@ -84,12 +84,6 @@ fn create_frame_source() -> RookLWResult<Box<dyn FrameSource + Send>> {
 
     let pixel_format = fourcc_to_string(frame_source.get_pixel_format()?);
 	info!(pixel_format = %pixel_format, "Camera pixel format");
-
-    if pixel_format != "MJPG" {
-		error!(pixel_format = %pixel_format, "Unexpected pixel format (expected MJPG)");
-        return Err(RookLWError::Camera(format!("Expected MJPG pixel format, got {}", pixel_format)));
-    }
-
 	info!(width = frame_source.get_width()?, height = frame_source.get_height()?, "Frame dimensions");
     
     Ok(frame_source)

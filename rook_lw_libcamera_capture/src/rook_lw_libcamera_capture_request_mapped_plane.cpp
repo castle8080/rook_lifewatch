@@ -1,6 +1,7 @@
 
 #include "rook_lw_libcamera_capture/rook_lw_libcamera_capture.hpp"
 
+#include <system_error>
 #include <cerrno>
 #include <condition_variable>
 #include <chrono>
@@ -18,6 +19,7 @@
 #include <libcamera/stream.h>
 
 #include <sys/mman.h>
+#include <unistd.h>
 
 namespace rook::lw_libcamera_capture {
 
@@ -32,10 +34,22 @@ CaptureRequestMappedPlane::CaptureRequestMappedPlane(const libcamera::FrameBuffe
         return;
     }
 
-    _length = plane.length;
-    _data = mmap(nullptr, _length, PROT_READ, MAP_SHARED, fd, plane.offset);
+    // Make sure that the offset is aligned to page size for mmap.
+    // This is necessary because mmap requires the offset to be page-aligned.
+    // Failure to do so will result in EINVAL error.
+    size_t page = sysconf(_SC_PAGESIZE);
+    off_t aligned_offset = plane.offset & ~(page - 1);
+    size_t delta = plane.offset - aligned_offset;
+
+    _length = plane.length + delta;
+    _data = mmap(nullptr, _length, PROT_READ, MAP_SHARED, fd, aligned_offset);
+
+    // Incorrect code here.
+    //_length = plane.length;
+    //_data = mmap(nullptr, _length, PROT_READ, MAP_SHARED, fd, plane.offset);
+
     if (_data == MAP_FAILED) {
-        throw CameraException("Failed to mmap plane", -EIO);
+        throw CameraException("Failed to mmap plane: " + std::string(std::system_error(errno, std::generic_category()).what()), errno);
     }
 }
 

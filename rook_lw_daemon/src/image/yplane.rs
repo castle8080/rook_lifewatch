@@ -40,6 +40,45 @@ impl YPlane<'_> {
                 2,
             ));
         }
+        else if pixel_format == fourcc::FOURCC_YU12 || pixel_format == fourcc::FOURCC_NV12 {
+            let width = frame.get_width()?;
+            let height = frame.get_height()?;
+            let plane_data = frame.get_plane_data(0)?;
+
+            return Ok(YPlane::new(
+                Cow::Borrowed(plane_data),
+                width,
+                height,
+                width,
+                1,
+            ));
+        }
+        else if pixel_format == fourcc::FOURCC_RGB3 {
+            let width = frame.get_width()?;
+            let height = frame.get_height()?;
+            let rgb_data = frame.get_plane_data(0)?;
+
+            // Extract luma from RGB
+            let mut luma_data = Vec::with_capacity(width * height);
+            for y in 0..height {
+                for x in 0..width {
+                    let index = (y * width + x) * 3;
+                    let r = rgb_data[index] as f32;
+                    let g = rgb_data[index + 1] as f32;
+                    let b = rgb_data[index + 2] as f32;
+                    let luma = (0.299 * r + 0.587 * g + 0.114 * b) as u8;
+                    luma_data.push(luma);
+                }
+            }
+
+            return Ok(YPlane::new(
+                Cow::Owned(luma_data),
+                width,
+                height,
+                width,
+                1,
+            ));
+        }
         else if pixel_format == fourcc::FOURCC_MJPG {
             let decoded = image::load_from_memory_with_format(
                 frame.get_plane_data(0)?,
