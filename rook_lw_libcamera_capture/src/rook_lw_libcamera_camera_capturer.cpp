@@ -8,6 +8,7 @@
 #include <mutex>
 #include <string>
 #include <vector>
+#include <sstream>
 
 #include <libcamera/camera.h>
 #include <libcamera/camera_manager.h>
@@ -18,7 +19,9 @@
 
 namespace rook::lw_libcamera_capture {
 
-std::shared_ptr<libcamera::Camera> get_camera(const std::string &camera_name, libcamera::CameraManager &camera_manager)
+using namespace libcamera;
+
+std::shared_ptr<Camera> get_camera(const std::string &camera_name, CameraManager &camera_manager)
 {
 	for (auto &cam : camera_manager.cameras()) {
 		if (cam->id() == camera_name) {
@@ -75,10 +78,8 @@ void CameraCapturer::reset_camera()
 	_config.reset();
 }
 
-void CameraCapturer::set_camera_source(const std::string &camera_name)
+void CameraCapturer::set_camera_source(const std::string &camera_name, uint32_t required_buffer_size)
 {
-	using namespace libcamera;
-
 	if (_camera) {
 		throw CameraException("Camera source already set", -EINVAL);
 	}
@@ -106,12 +107,8 @@ void CameraCapturer::set_camera_source(const std::string &camera_name)
 		throw CameraException("Failed to generate camera configuration", -EINVAL);
 	}
 
-	// TODO: add ffi to set configuration options like buffer count.
-	// The app needs at least 2 buffers to operate.
-	// This library should not know the app needs 2 buffers though.
-	// Additionall provide other options for configuration like size, pixel format, etc.
-	if (_config->at(0).bufferCount < 2) {
-		_config->at(0).bufferCount = 2;
+	if (_config->at(0).bufferCount < required_buffer_size) {
+		_config->at(0).bufferCount = required_buffer_size;
 	}
 
 	if (_config->validate() == CameraConfiguration::Invalid) {
@@ -133,13 +130,54 @@ void CameraCapturer::set_camera_source(const std::string &camera_name)
 		throw CameraException("Failed to allocate frame buffers", -ENOMEM);
 	}
 
+	std::cout << "Camera configured: "
+	          << "PixelFormat=" << stream_config.pixelFormat.toString()
+	          << ", Size=" << stream_config.size.toString()
+	          << ", BufferCount=" << stream_config.bufferCount
+			  << ", Stride=" << stream_config.stride
+			  << ", FrameSize=" << stream_config.frameSize
+	          << std::endl;
+
+
+
 	// Register callback for request completion.
 	_camera->requestCompleted.connect(this, &CameraCapturer::on_request_completed);
 }
 
-uint32_t CameraCapturer::get_pixel_format() {
-	using namespace libcamera;
+/// @brief Returns camera details and diagnostics information.
+/// @return 
+std::string CameraCapturer::get_camera_detail() {
+	if (!_camera || !_config) {
+		return "No camera source set.";
+	}
 
+	std::stringstream out;
+	out << "Camera ID: " << _camera->id() << std::endl;
+
+	const ControlInfoMap &controls = _camera->controls();
+	out << "Supported Controls:" << std::endl;
+	for (const auto &[id, info] : controls) {
+		out << " * " << id->name() << " : " << info.toString() << std::endl;
+	}
+
+	const ControlList &properties = _camera->properties();
+	out << "Camera Properties:" << std::endl;
+	for (const auto &[id, info] : properties) {
+		out << " * "  << id << " : " << info.toString() << std::endl;
+	}
+
+	StreamConfiguration &stream_config = _config->at(0);
+	out << "Stream Configuration:" << std::endl;
+	out << " * Pixel Format: " << stream_config.pixelFormat.toString() << std::endl;
+	out << " * Size: " << stream_config.size.toString() << std::endl;
+	out << " * Stride: " << stream_config.stride << std::endl;
+	out << " * Frame Size: " << stream_config.frameSize << std::endl;
+	out << " * Buffer Count: " << stream_config.bufferCount << std::endl;
+
+	return out.str();
+}
+
+uint32_t CameraCapturer::get_pixel_format() {
 	if (!_camera || !_config) {
 		throw CameraException("Camera source not set", -EINVAL);
 	}
@@ -150,8 +188,6 @@ uint32_t CameraCapturer::get_pixel_format() {
 }
 
 uint32_t CameraCapturer::get_width() {
-	using namespace libcamera;
-
 	if (!_camera || !_config) {
 		throw CameraException("Camera source not set", -EINVAL);
 	}
@@ -162,8 +198,6 @@ uint32_t CameraCapturer::get_width() {
 }
 
 uint32_t CameraCapturer::get_height() {
-	using namespace libcamera;
-
 	if (!_camera || !_config) {
 		throw CameraException("Camera source not set", -EINVAL);
 	}
@@ -171,6 +205,16 @@ uint32_t CameraCapturer::get_height() {
 	StreamConfiguration &stream_config = _config->at(0);
 
 	return stream_config.size.height;
+}
+
+uint32_t CameraCapturer::get_stride() {
+	if (!_camera || !_config) {
+		throw CameraException("Camera source not set", -EINVAL);
+	}
+
+	StreamConfiguration &stream_config = _config->at(0);
+
+	return stream_config.stride;
 }
 
 void CameraCapturer::start()
@@ -209,8 +253,6 @@ void CameraCapturer::stop()
 
 int CameraCapturer::checkout_frame_buffer_index()
 {
-	using namespace libcamera;
-
 	if (!_camera || !_allocator || !_config) {
 		throw CameraException("Camera source not set", -EINVAL);
 	}
@@ -253,8 +295,6 @@ void CameraCapturer::release_request_resources(CaptureRequest* request)
 
 std::shared_ptr<CaptureRequest> CameraCapturer::acquire_frame()
 {
-	using namespace libcamera;
-
 	if (!_camera || !_allocator || !_config) {
 		throw CameraException("Camera source not set", -EINVAL);
 	}
@@ -273,7 +313,7 @@ std::shared_ptr<CaptureRequest> CameraCapturer::acquire_frame()
 		throw CameraException("No available frame buffers", -EIO);
 	}
 
-	std::shared_ptr<libcamera::Request> request = std::move(_camera->createRequest(_next_request_sequence++));
+	std::shared_ptr<Request> request = std::move(_camera->createRequest(_next_request_sequence++));
 	if (request->addBuffer(stream, buffers[frame_buffer_index].get()) != 0) {
 		return_frame_buffer_index(frame_buffer_index);
 		throw CameraException("Failed to add buffer to request", -EIO);
@@ -302,7 +342,7 @@ std::shared_ptr<CaptureRequest> CameraCapturer::acquire_frame()
 	return capture_request;
 }
 
-void CameraCapturer::on_request_completed(libcamera::Request *request) {
+void CameraCapturer::on_request_completed(Request *request) {
 	if (!request) {
 		return;
 	}
@@ -313,7 +353,7 @@ void CameraCapturer::on_request_completed(libcamera::Request *request) {
 		auto value = std::move(it->second);
 		_requests.erase(it);
 
-		if (request->status() == libcamera::Request::RequestCancelled) {
+		if (request->status() == Request::RequestCancelled) {
 			value->on_request_cancelled();
 		}
 		else {

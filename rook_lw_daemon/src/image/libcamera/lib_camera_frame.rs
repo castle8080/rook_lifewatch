@@ -13,17 +13,18 @@ pub struct LibCameraFrame {
     pixel_format: u32,
     width: u32,
     height: u32,
+    stride: u32,
 }
 
 impl LibCameraFrame {
 
-    pub fn new(ptr: *mut ffi::rook_lw_capture_request_t, pixel_format: u32, width: u32, height: u32) -> RookLWResult<Self> {
+    pub fn new(ptr: *mut ffi::rook_lw_capture_request_t, pixel_format: u32, width: u32, height: u32, stride: u32) -> RookLWResult<Self> {
         let inner = NonNull::new(ptr).ok_or_else(|| {
             RookLWError::Initialization(
                 "rook_lw_capture_request_create returned null (failed to initialize)".to_string(),
             )
         })?;
-        Ok(Self { inner, pixel_format, width, height })
+        Ok(Self { inner, pixel_format, width, height, stride })
     }
 
     pub fn wait_for_completion(&self) -> RookLWResult<()> {
@@ -81,6 +82,10 @@ impl Frame for LibCameraFrame {
 
     fn get_height(&self) -> RookLWResult<usize> {
         Ok(self.height as usize)
+    }
+
+    fn get_stride(&self) -> RookLWResult<usize> {
+        Ok(self.stride as usize)
     }
 
     fn get_plane_count(&self) -> RookLWResult<usize> {

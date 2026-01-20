@@ -7,7 +7,7 @@ build = "build.rs"
 
 [features]
 default = []
-libcamera = []
+libcamera = ["libc"]
 opencv = []
 
 [dependencies]
@@ -29,6 +29,7 @@ rook_lw_models = { path = "../rook_lw_models" }
 rook_lw_image_repo = { path = "../rook_lw_image_repo" }
 r2d2 = "0.8.10"
 r2d2_sqlite = "0.32.0"
+libc = { version = "0.2", optional = true }
 
 [build-dependencies]
 pkg-config = "0.3"

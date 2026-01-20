@@ -111,7 +111,7 @@ impl FrameSource for OpenCvFrameSource {
         ])
     }
 
-    fn set_source(&mut self, source: &str) -> RookLWResult<()> {
+    fn set_source(&mut self, source: &str, required_buffer_count: u32) -> RookLWResult<()> {
         // Stop any existing capture
         if *self.is_started.get_mut() {
             self.stop()?;
@@ -127,6 +127,14 @@ impl FrameSource for OpenCvFrameSource {
         *self.source_name.get_mut() = Some(source.to_string());
         *self.capture.get_mut() = Some(capture);
         Ok(())
+    }
+
+    fn get_camera_detail(&self) -> RookLWResult<String> {
+        // TODO: Implement more detailed camera information retrieval if possible.
+        match self.source_name.borrow().as_ref() {
+            Some(name) => Ok(format!("OpenCV Frame Source: {}", name)),
+            None => Err(RookLWError::Camera("No source configured".to_string())),
+        }
     }
 
     fn start(&mut self) -> RookLWResult<()> {

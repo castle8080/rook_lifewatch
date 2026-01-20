@@ -31,6 +31,12 @@ unsafe extern "C" {
     pub unsafe fn rook_lw_camera_capturer_set_camera_source(
         capturer: *mut rook_lw_camera_capturer_t,
         source: *const c_char,
+        required_buffer_count: u32,
+    ) -> i32;
+
+    pub unsafe fn rook_lw_camera_capturer_get_camera_detail(
+        capturer: *const rook_lw_camera_capturer_t,
+        out_camera_detail: *mut *const c_char,
     ) -> i32;
 
     pub unsafe fn rook_lw_camera_capturer_get_pixel_format(
@@ -46,6 +52,11 @@ unsafe extern "C" {
     pub unsafe fn rook_lw_camera_capturer_get_height(
         capturer: *const rook_lw_camera_capturer_t,
         out_height: *mut u32,
+    ) -> i32;
+
+    pub unsafe fn rook_lw_camera_capturer_get_stride(
+        capturer: *const rook_lw_camera_capturer_t,
+        out_stride: *mut u32,
     ) -> i32;
 
     pub unsafe fn rook_lw_camera_capturer_start(

@@ -1,6 +1,7 @@
 use std::ffi::CStr;
 use std::ptr::NonNull;
 
+use crate::image::libcamera;
 use crate::{RookLWResult, RookLWError};
 use crate::image::frame::{Frame, FrameSource};
 use super::ffi;
@@ -60,9 +61,12 @@ impl LibCameraFrameSource {
         Ok(unsafe { CStr::from_ptr(ptr) }.to_string_lossy().into_owned())
     }
 
-    pub fn set_camera_source(&mut self, _source: &str) -> RookLWResult<()> {
+    pub fn set_camera_source(&mut self, _source: &str, required_buffer_count: u32) -> RookLWResult<()> {
         let result = unsafe {
-            ffi::rook_lw_camera_capturer_set_camera_source(self.inner.as_ptr(), std::ffi::CString::new(_source).unwrap().as_ptr())
+            ffi::rook_lw_camera_capturer_set_camera_source(
+                self.inner.as_ptr(), 
+                std::ffi::CString::new(_source).unwrap().as_ptr(),
+                required_buffer_count)
         };
         if result != 0 {
             return Err(RookLWError::Camera("Failed to set camera source".to_string()));
@@ -95,6 +99,20 @@ impl LibCameraFrameSource {
                 return Err(RookLWError::Image("Failed to get height".to_string()));
             }
             Ok(height)
+        }
+    }
+
+    pub fn get_stride(&self) -> RookLWResult<u32> {
+        unsafe {
+            let mut stride: u32 = 0;
+            let result = ffi::rook_lw_camera_capturer_get_stride(
+                self.inner.as_ptr(),
+                &mut stride as *mut u32,
+            );
+            if result != 0 {
+                return Err(RookLWError::Camera("Failed to get stride".to_string()));
+            }
+            Ok(stride)
         }
     }
 }
@@ -138,8 +156,30 @@ impl FrameSource for LibCameraFrameSource {
         Ok(sources)
     }
 
-    fn set_source(&mut self, source: &str) -> RookLWResult<()> {
-        self.set_camera_source(source)
+    fn set_source(&mut self, source: &str, required_buffer_count: u32) -> RookLWResult<()> {
+        self.set_camera_source(source, required_buffer_count)
+    }
+
+    fn get_camera_detail(&self) -> RookLWResult<String> {
+        unsafe {
+            let mut out_camera_detail: *const std::os::raw::c_char = std::ptr::null();
+            let result = ffi::rook_lw_camera_capturer_get_camera_detail(
+                self.inner.as_ptr(),
+                &mut out_camera_detail as *mut *const std::os::raw::c_char,
+            );
+            if result != 0 {
+                return Err(RookLWError::Camera("Failed to get camera detail".to_string()));
+            }
+            if out_camera_detail.is_null() {
+                return Err(RookLWError::Camera("Camera detail pointer is null".to_string()));
+            }
+            let detail = CStr::from_ptr(out_camera_detail).to_string_lossy().into_owned();
+            
+            // Free allocated string from C API.
+            libc::free(out_camera_detail as *mut libc::c_void);
+
+            Ok(detail)
+        }
     }
 
     fn next_frame(&self) -> RookLWResult<Box<dyn Frame + '_>> {
@@ -154,6 +194,7 @@ impl FrameSource for LibCameraFrameSource {
                 self.get_pixel_format()?,
                 self.get_width()?,
                 self.get_height()?,
+                self.get_stride()?,
             )?;
 
             frame.wait_for_completion()?;

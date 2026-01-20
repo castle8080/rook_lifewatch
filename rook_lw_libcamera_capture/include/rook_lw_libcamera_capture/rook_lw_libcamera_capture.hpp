@@ -52,8 +52,10 @@ public:
 
 	void reset_camera();
 
-    void set_camera_source(const std::string &camera_name);
+    void set_camera_source(const std::string &camera_name, uint32_t required_buffer_size = 1);
 	
+	std::string get_camera_detail();
+
 	std::shared_ptr<CaptureRequest> acquire_frame();
 
 	void start();
@@ -65,6 +67,8 @@ public:
 	uint32_t get_width();
 
 	uint32_t get_height();
+
+	uint32_t get_stride();
 
 private:
 	friend class CaptureRequest;
@@ -108,13 +112,25 @@ public:
 	CaptureRequestMappedPlane(const libcamera::FrameBuffer::Plane &plane);
 	~CaptureRequestMappedPlane();
 
+	/// @brief Get the length of the mapped data.
+	/// @return The length of the mapped data in bytes.
 	size_t get_length();
 
+	/// @brief Get a pointer to the mapped data. This may be different from the original
+	///        offset due to page alignment.
+	/// @note The length of the mapped data can be obtained via get_length().
+	/// @return 
 	void* get_data();
 
 private:
+	/// Pointer to mapped data.
 	void* _data = nullptr;
+
+	/// Length of mapped data.
 	size_t _length = 0;
+
+	/// Offset delta due to page alignment.
+	size_t _data_delta = 0;
 };
 
 class CaptureRequest {

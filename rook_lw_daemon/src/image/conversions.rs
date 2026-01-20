@@ -8,6 +8,18 @@ use crate::image::fourcc::{FOURCC_MJPG, FOURCC_YUYV, FOURCC_NV12, FOURCC_YU12, F
 
 use image::{DynamicImage, RgbImage, GenericImageView};
 
+/*
+ * Image conversion utilities between Frame trait objects and DynamicImage,
+ * as well as JPEG encoding/decoding helpers.
+ * 
+ * Only 2 of the frame conversions have been tested with real data so far:
+ * - YU12 to RGB
+ * - MJPG to RGB via JPEG decode
+ * 
+ * Several of the other formats may not handle stride > width.
+ * 
+ */
+
 /// Encode a DynamicImage to JPEG bytes. Default quality is 85 if not specified.
 pub fn dynamic_image_to_jpeg(img: &DynamicImage, quality: Option<u8>) -> RookLWResult<Vec<u8>> {
     let rgb = img.to_rgb8();
@@ -132,9 +144,20 @@ fn rgb_from_nv12_view<F: Frame + ?Sized>(frame: &F) -> RookLWResult<Vec<u8>> {
 fn rgb_from_yu12_view<F: Frame + ?Sized>(frame: &F) -> RookLWResult<Vec<u8>> {
     let width = frame.get_width()?;
     let height = frame.get_height()?;
+    let stride = frame.get_stride()?;
+
+    if stride < width {
+        return Err(RookLWError::Image(format!("YU12/I420 conversion requires stride >= width, got stride {} and width {}", stride, width)));
+    }
+
     if width % 2 != 0 || height % 2 != 0 {
         return Err(RookLWError::Image(format!("YU12/I420 conversion requires even width/height, got {width}x{height}")));
     }
+
+    if stride % 2 != 0 {
+        return Err(RookLWError::Image(format!("YU12/I420 conversion requires even stride, got {}", stride)));
+    }
+
     if frame.get_plane_count()? < 3 {
         return Err(RookLWError::Image(format!("YU12/I420 requires 3 planes, got {}", frame.get_plane_count()?)));
     }
@@ -143,7 +166,7 @@ fn rgb_from_yu12_view<F: Frame + ?Sized>(frame: &F) -> RookLWResult<Vec<u8>> {
     let u = frame.get_plane_data(1).map_err(|e| RookLWError::Image(format!("Missing YU12 U plane: {e}")))?;
     let v = frame.get_plane_data(2).map_err(|e| RookLWError::Image(format!("Missing YU12 V plane: {e}")))?;
 
-    let expected_y = width.checked_mul(height).ok_or_else(|| RookLWError::Image("Frame dimensions overflow".to_string()))?;
+    let expected_y = stride.checked_mul(height).ok_or_else(|| RookLWError::Image("Frame dimensions overflow".to_string()))?;
     let expected_uv = expected_y.checked_div(4).ok_or_else(|| RookLWError::Image("Frame dimensions overflow".to_string()))?;
     if y.len() < expected_y {
         return Err(RookLWError::Image(format!("YU12 Y plane too small: got {}, expected at least {}", y.len(), expected_y)));
@@ -154,7 +177,7 @@ fn rgb_from_yu12_view<F: Frame + ?Sized>(frame: &F) -> RookLWResult<Vec<u8>> {
     if v.len() < expected_uv {
         return Err(RookLWError::Image(format!("YU12 V plane too small: got {}, expected at least {}", v.len(), expected_uv)));
     }
-    i420_to_rgb_interleaved(width, height, &y[..expected_y], &u[..expected_uv], &v[..expected_uv])
+    i420_to_rgb_interleaved(width, height, stride, &y[..expected_y], &u[..expected_uv], &v[..expected_uv])
 }
 
 /// Decode JPEG bytes and re-encode them at a (typically lower) JPEG quality.
@@ -266,19 +289,21 @@ fn nv12_to_rgb_interleaved(
 fn i420_to_rgb_interleaved(
     width: usize,
     height: usize,
+    stride: usize,
     y: &[u8],
     u: &[u8],
     v: &[u8],
 ) -> RookLWResult<Vec<u8>> {
-    let pixel_count = width
+    let pixel_count = stride
         .checked_mul(height)
         .ok_or_else(|| RookLWError::Image("Frame dimensions overflow".to_string()))?;
     let mut rgb = vec![0u8; pixel_count * 3];
 
-    let chroma_width = width / 2;
+    let chroma_stride = stride / 2;
+
     for row in 0..height {
-        let y_row = row * width;
-        let c_row = (row / 2) * chroma_width;
+        let y_row = row * stride;
+        let c_row = (row / 2) * chroma_stride;
         for col in 0..width {
             let yv = y[y_row + col] as i32;
             let c_index = c_row + (col / 2);

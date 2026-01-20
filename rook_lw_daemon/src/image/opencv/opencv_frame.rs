@@ -77,4 +77,11 @@ impl Frame for OpenCvFrame {
         }
         Ok(rows as usize)
     }
+
+    fn get_stride(&self) -> RookLWResult<usize> {
+        let step = self.mat.step1(0).map_err(|e| {
+            RookLWError::Image(format!("Failed to get frame stride: {}", e))
+        })?;
+        Ok(step as usize)
+    }
 }

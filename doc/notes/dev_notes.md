@@ -82,3 +82,30 @@ Things to do to generally improve the code more. Not really needed yet.
 
 1. Get compilation and running on windows with opencv as frame source.
 2. For better testing create video file frame source (simulation).
+
+### Current Task Notes
+
+I have the new camera in IR mode working and had to adjust for image formats.
+I ran into some issues:
+
+1. mmap failed on some planes and learned I need to do some page offset changes.
+2. The camera had a default frame buffer of 1 and I needed 2 for the app. I need to expose a way to set frame buffer on the ffi layer.
+3. The camera is doesn't change day/night mode, but there are some settings that might make day look better.
+
+I want to look into changing controls:
+
+```
+
+#include <libcamera/libcamera.h>
+
+std::unique_ptr<libcamera::Camera> camera = ...; // initialized camera
+
+libcamera::ControlList controls(camera->controls());
+controls.set(libcamera::controls::AwbMode, libcamera::controls::AwbModeValues::Daylight);
+controls.set(libcamera::controls::ColourSaturation, 1.0f);
+controls.set(libcamera::controls::AnalogueGain, 256);
+controls.set(libcamera::controls::ExposureTime, 8000);
+
+camera->setControls(controls);
+
+```
