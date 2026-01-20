@@ -4,7 +4,7 @@ use std::io::Cursor;
 use crate::{RookLWError, RookLWResult};
 
 use crate::image::frame::Frame;
-use crate::image::fourcc::{FOURCC_MJPG, FOURCC_YUYV, FOURCC_NV12, FOURCC_YU12, FOURCC_RGB3, FOURCC_BGR3};
+use crate::image::fourcc::{FOURCC_MJPG, FOURCC_YUYV, FOURCC_NV12, FOURCC_YU12, FOURCC_RGB3, FOURCC_BGR3, fourcc_to_string};
 
 use image::{DynamicImage, RgbImage, GenericImageView};
 
@@ -24,6 +24,7 @@ pub fn dynamic_image_to_jpeg(img: &DynamicImage, quality: Option<u8>) -> RookLWR
 /// Convert a Frame into a DynamicImage, supporting various pixel formats.
 pub fn frame_to_dynamic_image<F: Frame + ?Sized>(frame: &F) -> RookLWResult<DynamicImage> {
     let pixel_format = frame.get_pixel_format()?;
+
     let width = frame.get_width()?;
     let height = frame.get_height()?;
 
@@ -46,7 +47,7 @@ pub fn frame_to_dynamic_image<F: Frame + ?Sized>(frame: &F) -> RookLWResult<Dyna
     } else {
         return Err(RookLWError::Image(format!(
             "Unsupported pixel format for DynamicImage conversion: {}",
-            crate::image::fourcc::fourcc_to_string(pixel_format)
+            fourcc_to_string(pixel_format)
         )));
     };
     // Construct RgbImage from raw RGB buffer
@@ -59,15 +60,16 @@ fn mjpg_plane_to_jpeg<F: Frame + ?Sized>(frame: &F) -> RookLWResult<Cow<'_, [u8]
     if frame.get_plane_count()? == 0 {
         return Err(RookLWError::Image("Frame has no planes".into()));
     }
-    Ok(Cow::Borrowed(frame.get_plane_data(0).map_err(|_| RookLWError::Image("Missing MJPG plane".into()))?))
+    let data = frame.get_plane_data(0).map_err(|e| RookLWError::Image(format!("Missing MJPG plane: {e}")))?;
+    Ok(Cow::Borrowed(&data))
 }
-
+    
 // Generic FrameView-based helpers for conversion
 fn rgb_from_rgb3_view<F: Frame + ?Sized>(frame: &F) -> RookLWResult<Vec<u8>> {
     let width = frame.get_width()?;
     let height = frame.get_height()?;
     let expected = width.checked_mul(height).and_then(|px| px.checked_mul(3)).ok_or_else(|| RookLWError::Image("Frame dimensions overflow".to_string()))?;
-    let src = frame.get_plane_data(0).map_err(|_| RookLWError::Image("Missing RGB3 plane".to_string()))?;
+    let src = frame.get_plane_data(0).map_err(|e| RookLWError::Image(format!("Missing RGB3 plane: {e}")))?;
     if src.len() < expected {
         return Err(RookLWError::Image(format!("RGB3 buffer too small: got {}, expected at least {}", src.len(), expected)));
     }
@@ -78,7 +80,7 @@ fn rgb_from_bgr3_view<F: Frame + ?Sized>(frame: &F) -> RookLWResult<Vec<u8>> {
     let width = frame.get_width()?;
     let height = frame.get_height()?;
     let expected = width.checked_mul(height).and_then(|px| px.checked_mul(3)).ok_or_else(|| RookLWError::Image("Frame dimensions overflow".to_string()))?;
-    let src = frame.get_plane_data(0).map_err(|_| RookLWError::Image("Missing BGR3 plane".to_string()))?;
+    let src = frame.get_plane_data(0).map_err(|e| RookLWError::Image(format!("Missing BGR3 plane: {e}")))?;
     if src.len() < expected {
         return Err(RookLWError::Image(format!("BGR3 buffer too small: got {}, expected at least {}", src.len(), expected)));
     }
@@ -97,7 +99,7 @@ fn rgb_from_yuyv_view<F: Frame + ?Sized>(frame: &F) -> RookLWResult<Vec<u8>> {
     if width % 2 != 0 {
         return Err(RookLWError::Image(format!("YUYV conversion requires even width, got {width}")));
     }
-    let yuyv = frame.get_plane_data(0).map_err(|_| RookLWError::Image("Missing YUYV plane".to_string()))?;
+    let yuyv = frame.get_plane_data(0).map_err(|e| RookLWError::Image(format!("Missing YUYV plane: {e}")))?;
     let expected_len = width.checked_mul(height).and_then(|px| px.checked_mul(2)).ok_or_else(|| RookLWError::Image("Frame dimensions overflow".to_string()))?;
     if yuyv.len() < expected_len {
         return Err(RookLWError::Image(format!("YUYV buffer too small: got {}, expected at least {}", yuyv.len(), expected_len)));
@@ -114,8 +116,8 @@ fn rgb_from_nv12_view<F: Frame + ?Sized>(frame: &F) -> RookLWResult<Vec<u8>> {
     if frame.get_plane_count()? < 2 {
         return Err(RookLWError::Image(format!("NV12 requires 2 planes, got {}", frame.get_plane_count()?)));
     }
-    let y = frame.get_plane_data(0).map_err(|_| RookLWError::Image("Missing NV12 Y plane".to_string()))?;
-    let uv = frame.get_plane_data(1).map_err(|_| RookLWError::Image("Missing NV12 UV plane".to_string()))?;
+    let y = frame.get_plane_data(0).map_err(|e| RookLWError::Image(format!("Missing NV12 Y plane: {e}")))?;
+    let uv = frame.get_plane_data(1).map_err(|e| RookLWError::Image(format!("Missing NV12 UV plane: {e}")))?;
     let expected_y = width.checked_mul(height).ok_or_else(|| RookLWError::Image("Frame dimensions overflow".to_string()))?;
     let expected_uv = expected_y.checked_div(2).ok_or_else(|| RookLWError::Image("Frame dimensions overflow".to_string()))?;
     if y.len() < expected_y {
@@ -136,9 +138,11 @@ fn rgb_from_yu12_view<F: Frame + ?Sized>(frame: &F) -> RookLWResult<Vec<u8>> {
     if frame.get_plane_count()? < 3 {
         return Err(RookLWError::Image(format!("YU12/I420 requires 3 planes, got {}", frame.get_plane_count()?)));
     }
-    let y = frame.get_plane_data(0).map_err(|_| RookLWError::Image("Missing YU12 Y plane".to_string()))?;
-    let u = frame.get_plane_data(1).map_err(|_| RookLWError::Image("Missing YU12 U plane".to_string()))?;
-    let v = frame.get_plane_data(2).map_err(|_| RookLWError::Image("Missing YU12 V plane".to_string()))?;
+
+    let y = frame.get_plane_data(0).map_err(|e| RookLWError::Image(format!("Missing YU12 Y plane: {e}")))?;
+    let u = frame.get_plane_data(1).map_err(|e| RookLWError::Image(format!("Missing YU12 U plane: {e}")))?;
+    let v = frame.get_plane_data(2).map_err(|e| RookLWError::Image(format!("Missing YU12 V plane: {e}")))?;
+
     let expected_y = width.checked_mul(height).ok_or_else(|| RookLWError::Image("Frame dimensions overflow".to_string()))?;
     let expected_uv = expected_y.checked_div(4).ok_or_else(|| RookLWError::Image("Frame dimensions overflow".to_string()))?;
     if y.len() < expected_y {

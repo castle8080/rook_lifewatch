@@ -106,6 +106,14 @@ void CameraCapturer::set_camera_source(const std::string &camera_name)
 		throw CameraException("Failed to generate camera configuration", -EINVAL);
 	}
 
+	// TODO: add ffi to set configuration options like buffer count.
+	// The app needs at least 2 buffers to operate.
+	// This library should not know the app needs 2 buffers though.
+	// Additionall provide other options for configuration like size, pixel format, etc.
+	if (_config->at(0).bufferCount < 2) {
+		_config->at(0).bufferCount = 2;
+	}
+
 	if (_config->validate() == CameraConfiguration::Invalid) {
 		reset_camera();
 		throw CameraException("Invalid camera configuration", -EINVAL);
@@ -257,8 +265,6 @@ std::shared_ptr<CaptureRequest> CameraCapturer::acquire_frame()
 
 	Stream *stream = _config->at(0).stream();
 
-	// TODO: might not assume that buffer 0 is free.
-	// Need to track buffers in use vs free.
 	auto& buffers = _allocator->buffers(stream);
 
 	// Get a frame buffer that can be used for this request.
