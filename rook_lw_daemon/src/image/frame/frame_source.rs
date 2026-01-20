@@ -6,7 +6,7 @@ pub trait FrameSource {
 
     fn list_sources(&mut self) -> RookLWResult<Vec<String>>;
 
-    fn set_source(&mut self, source: &str) -> RookLWResult<()>;
+    fn set_source(&mut self, source: &str, required_buffer_count: u32) -> RookLWResult<()>;
 
     fn start(&mut self) -> RookLWResult<()>;
     fn stop(&mut self) -> RookLWResult<()>;

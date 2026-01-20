@@ -79,7 +79,7 @@ fn create_frame_source() -> RookLWResult<Box<dyn FrameSource + Send>> {
     }
     else {
 		info!(source = %sources[0], "Using camera source");
-        frame_source.set_source(&sources[0])?;
+        frame_source.set_source(&sources[0], 2)?;
     }
 
     let pixel_format = fourcc_to_string(frame_source.get_pixel_format()?);

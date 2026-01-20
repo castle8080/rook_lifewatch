@@ -47,7 +47,8 @@ int32_t rook_lw_camera_capturer_get_camera_name(
 // Returns 0 on success or a negative errno-style code on error.
 int32_t rook_lw_camera_capturer_set_camera_source(
 	rook_lw_camera_capturer_t *capturer,
-	const char *camera_name);
+	const char *camera_name,
+	uint32_t required_buffer_size);
 
 int32_t rook_lw_camera_capturer_start(
 	rook_lw_camera_capturer_t *capturer);

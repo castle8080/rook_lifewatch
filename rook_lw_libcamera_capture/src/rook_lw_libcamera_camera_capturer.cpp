@@ -77,7 +77,7 @@ void CameraCapturer::reset_camera()
 	_config.reset();
 }
 
-void CameraCapturer::set_camera_source(const std::string &camera_name)
+void CameraCapturer::set_camera_source(const std::string &camera_name, uint32_t required_buffer_size)
 {
 	using namespace libcamera;
 
@@ -108,12 +108,8 @@ void CameraCapturer::set_camera_source(const std::string &camera_name)
 		throw CameraException("Failed to generate camera configuration", -EINVAL);
 	}
 
-	// TODO: add ffi to set configuration options like buffer count.
-	// The app needs at least 2 buffers to operate.
-	// This library should not know the app needs 2 buffers though.
-	// Additionall provide other options for configuration like size, pixel format, etc.
-	if (_config->at(0).bufferCount < 2) {
-		_config->at(0).bufferCount = 2;
+	if (_config->at(0).bufferCount < required_buffer_size) {
+		_config->at(0).bufferCount = required_buffer_size;
 	}
 
 	if (_config->validate() == CameraConfiguration::Invalid) {

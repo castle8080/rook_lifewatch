@@ -60,9 +60,12 @@ impl LibCameraFrameSource {
         Ok(unsafe { CStr::from_ptr(ptr) }.to_string_lossy().into_owned())
     }
 
-    pub fn set_camera_source(&mut self, _source: &str) -> RookLWResult<()> {
+    pub fn set_camera_source(&mut self, _source: &str, required_buffer_count: u32) -> RookLWResult<()> {
         let result = unsafe {
-            ffi::rook_lw_camera_capturer_set_camera_source(self.inner.as_ptr(), std::ffi::CString::new(_source).unwrap().as_ptr())
+            ffi::rook_lw_camera_capturer_set_camera_source(
+                self.inner.as_ptr(), 
+                std::ffi::CString::new(_source).unwrap().as_ptr(),
+                required_buffer_count)
         };
         if result != 0 {
             return Err(RookLWError::Camera("Failed to set camera source".to_string()));
@@ -152,8 +155,8 @@ impl FrameSource for LibCameraFrameSource {
         Ok(sources)
     }
 
-    fn set_source(&mut self, source: &str) -> RookLWResult<()> {
-        self.set_camera_source(source)
+    fn set_source(&mut self, source: &str, required_buffer_count: u32) -> RookLWResult<()> {
+        self.set_camera_source(source, required_buffer_count)
     }
 
     fn next_frame(&self) -> RookLWResult<Box<dyn Frame + '_>> {

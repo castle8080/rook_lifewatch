@@ -111,7 +111,7 @@ impl FrameSource for OpenCvFrameSource {
         ])
     }
 
-    fn set_source(&mut self, source: &str) -> RookLWResult<()> {
+    fn set_source(&mut self, source: &str, required_buffer_count: u32) -> RookLWResult<()> {
         // Stop any existing capture
         if *self.is_started.get_mut() {
             self.stop()?;

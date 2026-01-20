@@ -52,7 +52,7 @@ public:
 
 	void reset_camera();
 
-    void set_camera_source(const std::string &camera_name);
+    void set_camera_source(const std::string &camera_name, uint32_t required_buffer_size = 1);
 	
 	std::shared_ptr<CaptureRequest> acquire_frame();
 

@@ -31,6 +31,7 @@ unsafe extern "C" {
     pub unsafe fn rook_lw_camera_capturer_set_camera_source(
         capturer: *mut rook_lw_camera_capturer_t,
         source: *const c_char,
+        required_buffer_count: u32,
     ) -> i32;
 
     pub unsafe fn rook_lw_camera_capturer_get_pixel_format(

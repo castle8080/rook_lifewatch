@@ -100,14 +100,15 @@ extern "C" int32_t rook_lw_camera_capturer_get_camera_name(
 
 extern "C" int32_t rook_lw_camera_capturer_set_camera_source(
     rook_lw_camera_capturer_t *capturer,
-    const char *camera_name)
+    const char *camera_name,
+	uint32_t required_buffer_size)
 {
     if (!capturer || !camera_name) {
         return static_cast<int32_t>(-EINVAL);
     }
 
     try {
-        capturer->impl.set_camera_source(std::string(camera_name));
+        capturer->impl.set_camera_source(std::string(camera_name), required_buffer_size);
         return 0; // Success
     }
     catch (const rook::lw_libcamera_capture::CameraException &e) {
