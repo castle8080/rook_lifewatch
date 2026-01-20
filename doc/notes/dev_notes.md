@@ -20,6 +20,10 @@ Notes for tracking ideas and steps.
 2. Try running with battery banks and see how long it will run.
 3. Configure ability to either connect to phone hotspot or put device into hotspot mod itself, when no connection. (Should be able to connect to it in the field with no wifi it connects to.) It starting hotspot is probably good as either laptop or phone could then connect to it.
 
+*casing*
+
+1. Find potential casing to support device, camera, battery bank. Purchase or look into 3d printed models.
+
 *rook_lw_daemon*
 
 1. Add 2nd stage object detector using better ML model. (yolov4-tiny current being used.)

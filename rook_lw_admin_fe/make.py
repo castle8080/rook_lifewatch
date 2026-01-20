@@ -23,7 +23,7 @@ def init_dev():
 
 def run():
     init_dev()
-    subprocess.run(["trunk", "serve"], check=True)
+    subprocess.run(["trunk", "serve", "--port", "8081", "--public-url", "/admin/", "--proxy-backend=http://localhost:8080/api"], check=True)
 
 def build():
     init_dev()
