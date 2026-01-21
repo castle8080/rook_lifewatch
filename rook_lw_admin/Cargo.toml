@@ -5,7 +5,9 @@ edition = "2024"
 
 [dependencies]
 actix-files = "0.6.9"
-actix-web = "4.12.1"
+actix-web = { version = "4.12.1", features = ["rustls"] }
+rustls = "0.20.9"
+rustls-pemfile = "1.0"
 env_logger = "0.11.8"
 
 # For server-side HTML templating
