@@ -139,7 +139,7 @@ fn create_opencv_object_detector() -> RookLWResult<OpenCVObjectDetector> {
 }
 
 fn create_sqlite_pool() -> RookLWResult<Pool<SqliteConnectionManager>> {
-    let pool = create_pool("var/db/image_info_repository.sqlite")?;
+    let pool = create_pool("var/db/image_info.db")?;
     Ok(pool)
 }
 
