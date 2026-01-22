@@ -30,6 +30,7 @@ rook_lw_image_repo = { path = "../rook_lw_image_repo" }
 r2d2 = "0.8.10"
 r2d2_sqlite = "0.32.0"
 libc = { version = "0.2", optional = true }
+rusqlite = { version = "0.38.0", features = ["bundled"] }
 
 [build-dependencies]
 pkg-config = "0.3"
