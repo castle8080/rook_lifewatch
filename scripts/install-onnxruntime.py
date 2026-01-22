@@ -3,6 +3,7 @@ import re
 import os
 import platform
 import tarfile
+import zipfile
 import shutil
 from urllib.request import urlopen
 from urllib.parse import urlparse
@@ -38,6 +39,8 @@ def get_onnx_runtime_url():
         return "https://sourceforge.net/projects/onnx-runtime.mirror/files/v1.23.2/onnxruntime-linux-x64-1.23.2.tgz/download"
     elif system == "Linux" and machine == "aarch64":
         return "https://sourceforge.net/projects/onnx-runtime.mirror/files/v1.23.2/onnxruntime-linux-aarch64-1.23.2.tgz/download"
+    elif system == 'Windows' and machine == 'AMD64':
+        return "https://sourceforge.net/projects/onnx-runtime.mirror/files/v1.23.2/onnxruntime-win-arm64-1.23.2.zip/download"
     else:
         raise RuntimeError(f"Unsupported platform: {system} {machine}")
     
@@ -53,7 +56,14 @@ def get_onnx_runtime_filename():
 
     raise RuntimeError(f"Could not determine filename from URL: {url}")
 
-def extract_onnx_runtime(tar_path, extract_dir):
+def extract_onnx_runtime(onnx_path, extract_dir):
+    os.makedirs(lib_dir, exist_ok=True)
+    if re.search(r'\.(tgz|tar\.gz|tar)$', onnx_path, re.IGNORECASE):
+        extract_onnx_runtime_tar(onnx_path, extract_dir)
+    elif re.search(r'\.zip$', onnx_path, re.IGNORECASE):
+        extract_onnx_runtime_zip(onnx_path, extract_dir)
+
+def extract_onnx_runtime_tar(tar_path, extract_dir):
     # Open tar file detecting compression and in streaming mode.
     with tarfile.open(tar_path, "r|*") as tf:
         for m in tf:
@@ -67,6 +77,24 @@ def extract_onnx_runtime(tar_path, extract_dir):
                     return
 
     raise RuntimeError("libonnxruntime.so not found in the ONNX Runtime tarball")
+
+def extract_onnx_runtime_zip(zip_path, extract_dir):
+    # Look for the ONNX Runtime Windows DLL inside the zip and extract it
+    with zipfile.ZipFile(zip_path, "r") as zf:
+        for info in zf.infolist():
+            base_name = os.path.basename(info.filename)
+            if not base_name:
+                continue
+            name_low = base_name.lower()
+            if name_low.startswith("onnxruntime") and name_low.endswith(".dll") and not info.is_dir():
+                simple_name = "onnxruntime.dll"
+                dest_path = os.path.join(lib_dir, simple_name)
+                print(f"Name: {base_name}, Extracting to: {dest_path}")
+                with zf.open(info) as fsrc, open(dest_path, "wb") as fdst:
+                    shutil.copyfileobj(fsrc, fdst)
+                    return
+
+    raise RuntimeError("onnxruntime DLL not found in the ONNX Runtime zip")
 
 def main():
     url = get_onnx_runtime_url()

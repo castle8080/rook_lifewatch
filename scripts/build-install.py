@@ -1,9 +1,10 @@
-#!/bin/python3
+#!/usr/bin/env python3
 import os
 import sys
 import subprocess
 import re
 import shutil
+import platform
 
 project_dirs = [
     "rook_lw_libcamera_capture",
@@ -11,6 +12,10 @@ project_dirs = [
     "rook_lw_admin",
     "rook_lw_admin_fe",
 ]
+
+# We don't support libcamera on windows.
+if platform.system() == 'Windows':
+    project_dirs = [pd for pd in project_dirs if 'libcamera' not in pd]
 
 doownlad_scripts = [
     "scripts/download-model-files.py",
