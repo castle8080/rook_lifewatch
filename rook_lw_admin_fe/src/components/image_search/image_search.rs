@@ -21,7 +21,7 @@ async fn fetch_image_infos() -> RookLWAppResult<Vec<ImageInfo>> {
         .await?;
 
     images.sort_by(|a, b| b.capture_timestamp.cmp(&a.capture_timestamp));
-    images.truncate(100);
+    images.truncate(500);
 
     Ok(images)
 }
