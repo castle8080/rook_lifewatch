@@ -9,6 +9,7 @@ use rook_lw_models::image::MotionDetectionScore;
 
 use std::sync::Arc;
 use std::time::Duration;
+use std::time::Instant;
 use std::thread::{JoinHandle, sleep, spawn};
 
 use chrono::{DateTime, FixedOffset};
@@ -154,15 +155,18 @@ impl MotionWatcher {
             let current = FrameSlot::from_frame(self.frame_source.next_frame()?)?;
             let current_timestamp: DateTime<FixedOffset> = chrono::Local::now().into();
 
+            let timer = Instant::now();
             let motion_score = self.motion_detector.detect_motion(
                 last.yplane(),
                 current.yplane(),
             )?;
+            let elapsed = timer.elapsed();
 
             debug!(
                 motion_level = motion_score.score,
                 motion_detected = motion_score.detected,
                 motion_properties = %format!("{:?}", motion_score.properties),
+                detection_time_ms = elapsed.as_millis(),
                 "Motion watch sample"
             );
 
@@ -184,6 +188,8 @@ impl MotionWatcher {
                     capture_events: Vec::new(),
                 };
 
+                let timer = Instant::now();
+
                 // Store first image.
                 result.capture_events.push(CaptureEvent {
                     event_id,
@@ -203,6 +209,14 @@ impl MotionWatcher {
                     capture_timestamp: current_timestamp,
                     image: Arc::new(frame_to_dynamic_image(&*current.frame())?),
                 });
+
+                let elapsed = timer.elapsed();
+                debug!(
+                    event_id = %event_id,
+                    capture_count = result.capture_events.len(),
+                    capture_time_ms = elapsed.as_millis(),
+                    "Captured initial motion detection images"
+                );
 
                 return Ok(Some(result));
             }

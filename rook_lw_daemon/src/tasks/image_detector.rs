@@ -9,6 +9,8 @@ use crate::prodcon::{
 
 use tracing::info;
 
+use std::time::Instant;
+
 pub struct ImageDetector {
     object_detector: Box<dyn ObjectDetector>,
     producer_callbacks: ProducerCallbacks<ImageProcessingEvent>,
@@ -40,9 +42,16 @@ impl ImageDetector {
             "Processing image for object detection"
         );
     
+        let timer = Instant::now();
         let detections = self.object_detector.detect(&capture_event.image)?;
-
-        info!(detection_count = detections.len(), "Detections found");
+        let elapsed = timer.elapsed();
+        
+        info!(
+            event_id = %capture_event.event_id,
+            detection_time_ms = elapsed.as_millis(),
+            detection_count = detections.len(),
+            "Object detection completed"
+        );
 
         if tracing::enabled!(tracing::Level::INFO) {
             for (i, detection) in detections.iter().enumerate() {

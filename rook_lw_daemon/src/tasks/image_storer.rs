@@ -10,6 +10,8 @@ use rook_lw_models::image::ImageInfo;
 use rook_lw_image_repo::image_info::ImageInfoRepository;
 use rook_lw_image_repo::image_store::ImageStoreRepository;
 
+use std::time::Instant;
+
 pub trait OnImageStoredCallback : OnProduceCallback<StorageEvent> {}
 
 pub struct ImageStorer {
@@ -50,12 +52,15 @@ impl ImageStorer {
             "Processing capture event"
         );
 
+        let timer = Instant::now();
         let jpeg_data = dynamic_image_to_jpeg(&capture_event.image, Some(85))?;
+        let elapsed = timer.elapsed();
 
         tracing::info!(
             event_id = %capture_event.event_id,
             capture_index = capture_event.capture_index,
             jpeg_len = jpeg_data.len(),
+            encoding_time_ms = elapsed.as_millis(),
             "Encoded JPEG"
         );
 
@@ -63,14 +68,24 @@ impl ImageStorer {
         let image_path_rel = self.build_image_path(&capture_event);
 
         // Store image data
+        let timer = Instant::now();
         self.image_store_repository.store(&image_path_rel, &jpeg_data)?;
+        let elapsed = timer.elapsed();
 
+        tracing::info!(
+            event_id = %capture_event.event_id,
+            capture_index = capture_event.capture_index,
+            store_time_ms = elapsed.as_millis(),
+            "Stored image data"
+        );
 
         // Save image info to repository
         let image_id = format!(
             "{}_{}",
             capture_event.event_id, capture_event.capture_index
         );
+
+        let timer = Instant::now();
 
         let image_info = ImageInfo {
             image_id: image_id,
@@ -84,6 +99,14 @@ impl ImageStorer {
         };
 
         self.image_info_repository.save_image_info(&image_info)?;
+        let elapsed = timer.elapsed();
+
+        tracing::info!(
+            event_id = %capture_event.event_id,
+            capture_index = capture_event.capture_index,
+            save_time_ms = elapsed.as_millis(),
+            "Saved image info"
+        );
 
         let storage_event = StorageEvent {
             capture_event: capture_event.clone(),
