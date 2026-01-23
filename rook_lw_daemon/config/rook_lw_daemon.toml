@@ -12,8 +12,14 @@ motion_watcher_interval_ms = 100
 motion_watcher_captuer_interval_ms = 100
 motion_watcher_round_interval_ms = 100
 
+# pick motion detector type / algorithm (yplane_motion_percentile, yplane_boxed_average)
+motion_detector_type = "yplane_motion_percentile"
+
+# y plane motion detector defaults
+yplane_motion_percentile = 0.95
+yplane_motion_percentile_threshold = 0.02
+
 # y plane boxed average motion detector settings
-use_yplane_boxed_average_motion_detector = true
 yplane_boxed_average_motion_detector_box_size = 100
 yplane_boxed_average_motion_detector_percentile = 0.98
 yplane_boxed_average_motion_detector_threshold = 0.02

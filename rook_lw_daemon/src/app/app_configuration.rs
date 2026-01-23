@@ -24,8 +24,14 @@ pub struct AppConfiguration {
     pub motion_watcher_capture_interval_ms: u64,
     pub motion_watcher_round_interval_ms: u64,
 
+    // motion detector settings
+    pub motion_detector_type: String,
+
+    // Y Plane
+    pub yplane_motion_percentile: f32,
+    pub yplane_motion_percentile_threshold: f32,
+
     // Y Plane boxed average motion detector settings
-    pub use_yplane_boxed_average_motion_detector: bool,
     pub yplane_boxed_average_motion_detector_box_size: usize,
     pub yplane_boxed_average_motion_detector_percentile: f32,
     pub yplane_boxed_average_motion_detector_threshold: f32,
@@ -57,6 +63,7 @@ impl Default for AppConfiguration {
             camera_source: None,
             image_directory: "var/images".into(),
             database_path: "var/db/image_info.db".into(),
+
             // motion watcher defaults
             use_motion_watcher: true,
             motion_watcher_count: 20,
@@ -65,8 +72,14 @@ impl Default for AppConfiguration {
             motion_watcher_capture_interval_ms: 200,
             motion_watcher_round_interval_ms: 500,
 
+            // Which motion detector to use.
+            motion_detector_type: "yplane_motion_percentile".into(),
+
+            // y plane motion detector defaults
+            yplane_motion_percentile: 0.95,
+            yplane_motion_percentile_threshold: 0.02,
+
             // y plane boxed average motion detector defaults
-            use_yplane_boxed_average_motion_detector: true,
             yplane_boxed_average_motion_detector_box_size: 100,
             yplane_boxed_average_motion_detector_percentile: 0.98,
             yplane_boxed_average_motion_detector_threshold: 0.02,

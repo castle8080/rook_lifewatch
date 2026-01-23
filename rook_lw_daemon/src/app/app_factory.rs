@@ -6,7 +6,7 @@ use crate::image::object_detection::OnnxObjectDetector;
 use crate::image::frame::FrameSource;
 use crate::image::frame::FrameSourceFactory;
 use crate::image::fourcc::fourcc_to_string;
-use crate::image::motion::{YPlaneMotionDetector, YPlaneRollingZMotionDetector, YPlaneBoxedAverageMotionDetector};
+use crate::image::motion::{YPlaneMotionDetector, YPlaneRollingZMotionDetector, YPlaneBoxedAverageMotionDetector, YPlaneMotionPercentileDetector};
 use crate::tasks::motion_watcher::MotionWatcher;
 use crate::tasks::image_storer::ImageStorer;
 use crate::tasks::image_detector::ImageDetector;
@@ -142,28 +142,44 @@ fn create_frame_source(app_config: &AppConfiguration) -> RookLWResult<Box<dyn Fr
 }
 
 fn create_motion_detector(app_config: &AppConfiguration) -> RookLWResult<Box<dyn YPlaneMotionDetector>> {
-    //let base_motion_detector = YPlaneMotionPercentileDetector::new(0.95, 0.02);
-    //let motion_detector = YPlaneRollingZMotionDetector::new(base_motion_detector, 0.05, 2.0)?;
+    
+    fn add_rolling_z_if_enabled<T>(app_config: &AppConfiguration, base_detector: T) -> RookLWResult<Box<dyn YPlaneMotionDetector>>
+        where T: YPlaneMotionDetector + 'static
+    {
+        if app_config.use_yplane_rolling_z {
+            info!("Using Y-Plane Rolling Z motion detector");
 
-    let base_motion_detector = YPlaneBoxedAverageMotionDetector::new(
-        app_config.yplane_boxed_average_motion_detector_box_size, 
-        app_config.yplane_boxed_average_motion_detector_percentile,
-        app_config.yplane_boxed_average_motion_detector_threshold,
-    );
+            let motion_detector = YPlaneRollingZMotionDetector::new(
+                base_detector, 
+                app_config.yplane_rolling_z_alpha, 
+                app_config.yplane_rolling_z_threshold
+            )?;
 
-    if !app_config.use_yplane_rolling_z {
-        Ok(Box::new(base_motion_detector))
+            Ok(Box::new(motion_detector))
+        }
+        else {
+            Ok(Box::new(base_detector))
+        }
     }
-    else {
-        info!("Using Y-Plane Rolling Z motion detector");
 
-        let motion_detector = YPlaneRollingZMotionDetector::new(
-            base_motion_detector, 
-            app_config.yplane_rolling_z_alpha, 
-            app_config.yplane_rolling_z_threshold
-        )?;
-
-        Ok(Box::new(motion_detector))
+    match app_config.motion_detector_type.as_str() {
+        "yplane_motion_percentile" => {
+            add_rolling_z_if_enabled(app_config, YPlaneMotionPercentileDetector::new(
+                app_config.yplane_motion_percentile,
+                app_config.yplane_motion_percentile_threshold,
+            ))
+        },
+        "yplane_boxed_average" => {
+            add_rolling_z_if_enabled(app_config, YPlaneBoxedAverageMotionDetector::new(
+                app_config.yplane_boxed_average_motion_detector_box_size, 
+                app_config.yplane_boxed_average_motion_detector_percentile,
+                app_config.yplane_boxed_average_motion_detector_threshold,
+            ))
+        },
+        other => Err(RookLWError::Initialization(format!(
+            "Unknown motion detector type: {}",
+            other
+        ))),
     }
 }
 
