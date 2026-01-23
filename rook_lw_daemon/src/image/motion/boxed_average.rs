@@ -68,48 +68,23 @@ pub fn compute_boxed_averages(
 
             let mut sum_a: u64 = 0;
             let mut sum_b: u64 = 0;
-            let mut pixel_count: u64 = 0;
 
             for y in start_y..end_y {
-                let a_row = y
-                    .checked_mul(a.stride)
-                    .ok_or_else(|| RookLWError::Image("YPlane index overflow".to_string()))?;
-                let b_row = y
-                    .checked_mul(b.stride)
-                    .ok_or_else(|| RookLWError::Image("YPlane index overflow".to_string()))?;
-
+                let a_row = y * a.stride;
+                let b_row = y * b.stride;
                 for x in start_x..end_x {
-                    let a_index = a_row
-                        .checked_add(
-                            x.checked_mul(a.pixel_step)
-                                .ok_or_else(|| RookLWError::Image("YPlane index overflow".to_string()))?,
-                        )
-                        .ok_or_else(|| RookLWError::Image("YPlane index overflow".to_string()))?;
-                    let b_index = b_row
-                        .checked_add(
-                            x.checked_mul(b.pixel_step)
-                                .ok_or_else(|| RookLWError::Image("YPlane index overflow".to_string()))?,
-                        )
-                        .ok_or_else(|| RookLWError::Image("YPlane index overflow".to_string()))?;
-
-                    let av = *a.data.get(a_index).ok_or_else(|| {
-                        RookLWError::Image("YPlane access out of bounds".to_string())
-                    })?;
-                    let bv = *b.data.get(b_index).ok_or_else(|| {
-                        RookLWError::Image("YPlane access out of bounds".to_string())
-                    })?;
-
+                    let a_index = a_row + x * a.pixel_step;
+                    let b_index = b_row + x * b.pixel_step;
+                    // SAFETY: We assume valid input and bounds checked above
+                    let av = unsafe { *a.data.get_unchecked(a_index) };
+                    let bv = unsafe { *b.data.get_unchecked(b_index) };
                     sum_a += av as u64;
                     sum_b += bv as u64;
-                    pixel_count += 1;
                 }
             }
 
-            if pixel_count == 0 {
-                return Err(RookLWError::Image(
-                    "Box has zero pixels".to_string(),
-                ));
-            }
+            let pixel_count = (end_x - start_x) as u64 * (end_y - start_y) as u64;
+            debug_assert!(pixel_count > 0, "Box has zero pixels");
 
             let avg_a = sum_a as f32 / pixel_count as f32;
             let avg_b = sum_b as f32 / pixel_count as f32;
