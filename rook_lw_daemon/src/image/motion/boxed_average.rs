@@ -1,4 +1,3 @@
-
 use crate::{RookLWError, RookLWResult};
 use crate::image::yplane::YPlane;
 
@@ -21,6 +20,7 @@ use crate::image::yplane::YPlane;
 ///
 /// Boxes are ordered row-major: box 0 is top-left, box `divisions-1` is top-right,
 /// box `divisions*divisions-1` is bottom-right.
+///
 pub fn compute_boxed_averages(
     a: &YPlane<'_>,
     b: &YPlane<'_>,

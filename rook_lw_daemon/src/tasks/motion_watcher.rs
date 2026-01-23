@@ -162,14 +162,6 @@ impl MotionWatcher {
             )?;
             let elapsed = timer.elapsed();
 
-            debug!(
-                motion_level = motion_score.score,
-                motion_detected = motion_score.detected,
-                motion_properties = %format!("{:?}", motion_score.properties),
-                detection_time_ms = elapsed.as_millis(),
-                "Motion watch sample"
-            );
-
             if motion_score.detected {
                 let event_id = Uuid::new_v4();
 
@@ -178,6 +170,7 @@ impl MotionWatcher {
                     motion_detected = motion_score.detected,
                     motion_score_properties = %format!("{:?}", motion_score.properties),
                     event_id = %event_id,
+                    motion_detection_time_ms = elapsed.as_millis(),
                     "Motion detected."
                 );
 
