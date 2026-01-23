@@ -1,7 +1,6 @@
 use std::ffi::CStr;
 use std::ptr::NonNull;
 
-use crate::image::libcamera;
 use crate::{RookLWResult, RookLWError};
 use crate::image::frame::{Frame, FrameSource};
 use super::ffi;

@@ -7,6 +7,7 @@ import platform
 
 install_dir = "../dist"
 bin_dir = os.path.join(install_dir, "bin")
+config_dir = os.path.join(install_dir, "config")
 build_dir = "target/release"
 
 windows_opencv_dir = os.environ.get('OpenCV_DIR', 'C:\\opencv\\build')
@@ -68,6 +69,17 @@ def build():
     _setup_opencv()
     subprocess.run(["cargo", "build", "--release"] + _get_features(), check=True)
 
+def _install_config():
+    os.makedirs(config_dir, exist_ok=True)
+
+    # Copy all config files from config/ to install config dir
+    for file in os.listdir("config"):
+        src_file_path = os.path.join("config", file)
+        dest_file_path = os.path.join(config_dir, file)
+        if os.path.isfile(src_file_path):
+            print(f"Installing config {file} to {dest_file_path}")
+            shutil.copy(src_file_path, dest_file_path)
+
 def _install_executables():
     os.makedirs(bin_dir, exist_ok=True)
 
@@ -82,6 +94,7 @@ def _install_executables():
 def install():
     build()
     _install_executables()
+    _install_config()
 
 if __name__ == "__main__":
     try:

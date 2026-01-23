@@ -16,7 +16,7 @@ impl FrameSourceFactory {
     }
 
     /// Try to create a specific frame source by name
-    fn try_create(source_name: &str) -> RookLWResult<Box<dyn FrameSource + Send>> {
+    pub fn try_create(source_name: &str) -> RookLWResult<Box<dyn FrameSource + Send>> {
         match source_name {
             "libcamera" => {
                 try_create_libcamera_source()

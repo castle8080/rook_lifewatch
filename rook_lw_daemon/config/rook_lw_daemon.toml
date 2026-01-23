@@ -1,0 +1,33 @@
+# where to store image files.
+image_directory = "var/images"
+
+# sqlite database path
+database_path = "var/db/image_info.db"
+
+# motion watcher settings
+use_motion_watcher = true
+motion_watcher_count = 50
+motion_watcher_capture_count = 5
+motion_watcher_interval_ms = 100
+motion_watcher_captuer_interval_ms = 100
+motion_watcher_round_interval_ms = 100
+
+# y plane boxed average motion detector settings
+use_yplane_boxed_average_motion_detector = true
+yplane_boxed_average_motion_detector_box_size = 100
+yplane_boxed_average_motion_detector_percentile = 0.98
+yplane_boxed_average_motion_detector_threshold = 0.02
+
+# y plane rolling z settings
+use_yplane_rolling_z = true
+yplane_rolling_z_alpha = 0.05
+yplane_rolling_z_threshold = 2.0
+
+# object detector defaults
+object_detector_type = "opencv"
+
+# opencv object detector defaults
+opencv_model_config_path = "models/yolov4-tiny.cfg"
+opencv_model_weights_path = "models/yolov4-tiny.weights"
+opencv_model_names_path = "models/coco.names"
+opencv_model_confidence_threshold = 0.15

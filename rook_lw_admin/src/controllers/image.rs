@@ -3,7 +3,7 @@ use actix_web::web::ServiceConfig;
 use tokio::task::spawn_blocking;
 use tracing::info;
 
-use rook_lw_models::image::{ImageInfo, ImageInfoSearchOptions};
+use rook_lw_models::image::ImageInfoSearchOptions;
 
 use crate::RookLWAdminError;
 use crate::app::AppState;
