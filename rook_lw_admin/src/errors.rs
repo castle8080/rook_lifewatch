@@ -5,6 +5,7 @@ use actix_web::http::StatusCode;
 use rook_lw_image_repo::ImageRepoError;
 use serde_json;
 use tokio::task::JoinError;
+use tracing::error;
 
 pub type RookLWAdminResult<T> = Result<T, RookLWAdminError>;
 
@@ -52,6 +53,11 @@ impl ResponseError for RookLWAdminError {
     }
 
     fn error_response(&self) -> actix_web::HttpResponse {
+        error!(
+            status_code = %self.status_code(),
+            error = %&self,
+            "Error response."
+        );
         actix_web::HttpResponse::build(self.status_code())
             .json(serde_json::json!({"error": self.to_string()}))
     }

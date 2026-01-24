@@ -11,6 +11,7 @@ async fn fetch_image_infos() -> RookLWAppResult<Vec<ImageInfo>> {
     let query = ImageInfoSearchOptions {
         start_date: None,
         end_date: None,
+        ..Default::default()
     };
     let url = format!("/api/image_info?{}", serde_qs::to_string(&query)?);
 

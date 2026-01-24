@@ -7,7 +7,7 @@ pub trait ImageInfoRepository: Send + Sync {
 
     fn get_image_info(&self, image_id: &str) -> ImageRepoResult<Option<ImageInfo>>;
 
-    fn search_image_info_by_date_range(
+    fn search_image_info(
         &self,
         options: &ImageInfoSearchOptions,
         ) -> ImageRepoResult<Vec<ImageInfo>>;

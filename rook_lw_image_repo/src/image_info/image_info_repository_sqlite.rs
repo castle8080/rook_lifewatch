@@ -4,8 +4,8 @@ use crate::ImageRepoResult;
 use rook_lw_models::image::{Detection, MotionDetectionScore, ImageInfo, ImageInfoSearchOptions};
 
 use rusqlite::Row;
-use tracing::info;
-use rusqlite::{params};
+use tracing::{debug, info};
+use rusqlite::{params, ToSql};
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use serde_json;
@@ -68,9 +68,6 @@ impl ImageInfoRepositorySqlite {
         "#)?;
         Ok(())
     }
-}
-
-impl ImageInfoRepository for ImageInfoRepositorySqlite {
 
     fn save_image_info(&self, info: &ImageInfo) -> ImageRepoResult<()> {
         let motion_score_json = serde_json::to_string(&info.motion_score)?;
@@ -117,26 +114,79 @@ impl ImageInfoRepository for ImageInfoRepositorySqlite {
         }
     }
 
-    fn search_image_info_by_date_range(
+    fn search_image_info(
         &self,
         options: &ImageInfoSearchOptions,
         ) -> ImageRepoResult<Vec<ImageInfo>>
     {
         let conn = self.pool.get()?;
-        let mut query = String::from(
-            r#"SELECT image_id, event_id, event_timestamp, motion_score, detections, capture_index, capture_timestamp, image_path
-               FROM image_info WHERE 1=1"#
-        );
-        let mut params_vec: Vec<String> = Vec::new();
 
+        info!("In search image info!!!!!");
+
+        // Base query selection
+        let mut query = String::new();
+        query.push_str("SELECT\n");
+        query.push_str("  image_id, event_id, event_timestamp, motion_score,\n");
+        query.push_str("  detections, capture_index, capture_timestamp, image_path\n");
+        query.push_str("FROM image_info AS ii_outer\n");
+        query.push_str("WHERE 1=1\n");
+
+        // Hold query parameters
+        let mut params_vec: Vec<Box<dyn ToSql>> = Vec::new();
+
+        // capture_timestamp range check
         if let Some(start_dt) = &options.start_date {
-            query.push_str(" AND datetime(capture_timestamp) >= datetime(?1)");
-            params_vec.push(start_dt.to_rfc3339());
+            query.push_str("  AND datetime(capture_timestamp) >= datetime(?1)\n");
+            params_vec.push(Box::new(start_dt.to_rfc3339()));
         }
+
+        // capture_timestamp range check
         if let Some(end_dt) = &options.end_date {
-            query.push_str(" AND datetime(capture_timestamp) <= datetime(?2)");
-            params_vec.push(end_dt.to_rfc3339());
+            query.push_str("  AND datetime(capture_timestamp) <= datetime(?2)\n");
+            params_vec.push(Box::new(end_dt.to_rfc3339()));
         }
+
+        // Critera on detections
+        query.push_str("  AND EXISTS (\n");
+        query.push_str("    SELECT image_id\n");
+        query.push_str("    FROM image_info AS ii_inner, json_each(ii_inner.detections) as detection\n");
+        query.push_str("    WHERE ii_outer.image_id = ii_inner.image_id\n");
+
+        // Build up detection class name criteria
+        if options.detection_classes.len() > 0 {
+            query.push_str("      AND json_extract(detection.value, '$.class_name') IN (");
+            for (idx, class_name) in options.detection_classes.iter().enumerate() {
+                if idx > 0 {
+                    query += ",";
+                }
+                query += "?";
+                params_vec.push(Box::new(class_name));
+            }
+            query += ")\n";
+        }
+
+        // detection class confidence
+        if let Some(confidence) = options.detection_class_confidence {
+            query.push_str("      AND json_extract(detection.value, '$.confidence') >= ?\n");
+            params_vec.push(Box::new(confidence));
+        }
+
+        // End the exists check.
+        query.push_str("  )\n");
+
+        // Add limit and offset
+        let limit = options.limit.unwrap_or(500);
+        let offset = options.offset.unwrap_or(0);
+
+        query.push_str("LIMIT ?\n");
+        params_vec.push(Box::new(limit));
+        query.push_str("OFFSET ?\n");
+        params_vec.push(Box::new(offset));
+
+        debug!(
+            query = query.replace("\n", " "),
+            "Built sql query"
+        );
 
         let mut stmt = conn.prepare(&query)?;
         let mut rows = stmt.query(rusqlite::params_from_iter(params_vec.iter()))?;
@@ -147,7 +197,28 @@ impl ImageInfoRepository for ImageInfoRepositorySqlite {
             results.push(image_info);
         }
 
+        debug!(row_count = results.len(), "Result count");
+
         Ok(results)
     }
 
+}
+
+impl ImageInfoRepository for ImageInfoRepositorySqlite {
+    
+    fn save_image_info(&self, info: &ImageInfo) -> ImageRepoResult<()> {
+        self.save_image_info(info)
+    }
+
+    fn get_image_info(&self, image_id: &str) -> ImageRepoResult<Option<ImageInfo>> {
+        self.get_image_info(image_id)
+    }
+
+    fn search_image_info(
+        &self,
+        options: &ImageInfoSearchOptions)
+        -> ImageRepoResult<Vec<ImageInfo>>
+    {
+        self.search_image_info(options)
+    }
 }
