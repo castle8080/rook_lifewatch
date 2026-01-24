@@ -15,6 +15,18 @@ pub enum RookLWAdminError {
 
     #[error("Concurrency error: {0}")]
     Concurrency(String),
+
+    #[error("IO error: {0}")]
+    Io(String),
+
+    #[error("Invalid input")]
+    Input(String),
+}
+
+impl From<std::io::Error> for RookLWAdminError {
+    fn from(err: std::io::Error) -> Self {
+        RookLWAdminError::Io(format!("IO error: {}", err))
+    }
 }
 
 impl From<JoinError> for RookLWAdminError {
@@ -34,6 +46,8 @@ impl ResponseError for RookLWAdminError {
         match self {
             RookLWAdminError::Database(_) => StatusCode::INTERNAL_SERVER_ERROR,
             RookLWAdminError::Concurrency(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            RookLWAdminError::Io(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            RookLWAdminError::Input(_) => StatusCode::BAD_REQUEST,
         }
     }
 

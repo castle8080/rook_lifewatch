@@ -8,11 +8,12 @@ use std::sync::Arc;
 use r2d2_sqlite::SqliteConnectionManager;
 use r2d2::Pool;
 
-pub fn create_app() -> RookLWAdminResult<AppState> {
-    let sqlite_pool = create_sqlite_pool()?;
+pub fn create_app(var_dir: &str, admin_dir: &str) -> RookLWAdminResult<AppState> {
+    let sqlite_pool = create_sqlite_pool(var_dir)?;
     let image_info_repo = create_image_info_repository(sqlite_pool)?;
 
     let app = AppState {
+        admin_static_dir: admin_dir.to_string(),
         image_info_repo: Arc::new(image_info_repo),
         // other fields...
     };
@@ -20,8 +21,9 @@ pub fn create_app() -> RookLWAdminResult<AppState> {
     Ok(app)
 }
 
-fn create_sqlite_pool() -> RookLWAdminResult<Pool<SqliteConnectionManager>> {
-    let pool = create_pool("var/db/image_info.db")?;
+fn create_sqlite_pool(var_dir: &str) -> RookLWAdminResult<Pool<SqliteConnectionManager>> {
+    let db_path = format!("{}/db/image_info.db", var_dir);
+    let pool = create_pool(&db_path)?;
     Ok(pool)
 }
 
@@ -33,9 +35,10 @@ fn create_image_info_repository(pool: Pool<SqliteConnectionManager>) -> RookLWAd
     Ok(Box::new(repo))
 }
 
-fn create_image_store_repository() -> RookLWAdminResult<Box<dyn ImageStoreRepository>> {
+fn create_image_store_repository(var_dir: &str) -> RookLWAdminResult<Box<dyn ImageStoreRepository>> {
+    let images_path = format!("{}/images", var_dir);
     let repo = ImageStoreRepositoryFile::new(
-        "var/images".into()
+        images_path.into()
     )?;
 
     Ok(Box::new(repo))

@@ -17,6 +17,13 @@ def test():
 def build():
     subprocess.run(["cargo", "build", "--release"], check=True)
 
+def run():
+    subprocess.run([
+        "cargo", "run", "--release", "--",
+        "--protocol", "http", "--port", "8080",
+        "--www-dir", "../dist/www",
+        "--var-dir", "../dist/var"], check=True)
+
 def _install_static_files():
     source_dir = "www"
     dist_dir = os.path.join(install_dir, "www")
