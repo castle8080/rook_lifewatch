@@ -174,6 +174,9 @@ impl ImageInfoRepositorySqlite {
         // End the exists check.
         query.push_str("  )\n");
 
+        // Reverse order by capture timestamp.
+        query.push_str("ORDER BY datetime(capture_timestamp) DESC\n");
+
         // Add limit and offset
         let limit = options.limit.unwrap_or(500);
         let offset = options.offset.unwrap_or(0);

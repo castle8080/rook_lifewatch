@@ -13,7 +13,9 @@ async fn fetch_image_infos() -> RookLWAppResult<Vec<ImageInfo>> {
         end_date: None,
         ..Default::default()
     };
-    let url = format!("/api/image_info?{}", serde_qs::to_string(&query)?);
+
+    let query_str = serde_qs::to_string(&query)?;
+    let url = format!("/api/image_info?{}", &query_str);
 
     let mut images = Request::get(url.as_str())
         .send()
@@ -26,17 +28,6 @@ async fn fetch_image_infos() -> RookLWAppResult<Vec<ImageInfo>> {
 
     Ok(images)
 }
-
-const IMAGE_INFO_STYLE: &str = r#"
-    .image-search-component table, .image-search-component th, .image-search-component td {
-        border: 1px solid black;
-        border-collapse: collapse;
-    }
-    .image-search-component th, .image-search-component td {
-        padding: 5px;
-        text-align: left;
-    }
-"#;
 
 #[component]
 pub fn ImageInfo(image_info: ImageInfo) -> impl IntoView {
@@ -69,7 +60,6 @@ pub fn ImageSearch() -> impl IntoView {
     let image_info_data = LocalResource::new(move || fetch_image_infos());
 
     view! {
-        <style>{ IMAGE_INFO_STYLE }</style>
         <div class="image-search-component">
             <h1>"Images"</h1>
             { move || {
