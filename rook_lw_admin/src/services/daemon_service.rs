@@ -36,8 +36,16 @@ impl DaemonService {
         let mut cmd = Command::new(&command[0]);
         cmd.args(&command[1..]);
         cmd.current_dir(&self.app_dir);
-        
-        // todo: use setsid on unix
+
+        // Use setsid on unix to fully detach the process
+        #[cfg(unix)]
+        {
+            use std::os::unix::process::CommandExt;
+            cmd.before_exec(|| {
+                unsafe { libc::setsid() };
+                Ok(())
+            });
+        }
 
         let _process = cmd.spawn()?;
 
