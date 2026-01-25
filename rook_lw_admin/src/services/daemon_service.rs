@@ -41,10 +41,12 @@ impl DaemonService {
         #[cfg(unix)]
         {
             use std::os::unix::process::CommandExt;
-            cmd.before_exec(|| {
-                unsafe { libc::setsid() };
-                Ok(())
-            });
+            unsafe {
+                cmd.pre_exec(|| {
+                    libc::setsid();
+                    Ok(())
+                });
+            }
         }
 
         let _process = cmd.spawn()?;
