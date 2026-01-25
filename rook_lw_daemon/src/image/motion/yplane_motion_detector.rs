@@ -1,8 +1,4 @@
-
-use std::collections::HashMap;
-
 use crate::image::yplane::YPlane;
-use crate::stats::RollingZ;
 use crate::RookLWResult;
 
 use rook_lw_models::image::MotionDetectionScore;
