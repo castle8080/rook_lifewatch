@@ -30,5 +30,5 @@ pub async fn daemon_stop(state: web::Data<AppState>)
 
 pub fn register(sc: &mut ServiceConfig) {
     sc.route("/api/daemon/status", web::get().to(daemon_status));
-    sc.route("/api/daemon/stop", web::post().to(daemon_status));
+    sc.route("/api/daemon/stop", web::post().to(daemon_stop));
 }
