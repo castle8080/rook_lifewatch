@@ -2,7 +2,7 @@
 use chrono::{DateTime, FixedOffset};
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Deserialize, Serialize, Default, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Default, PartialEq, Clone)]
 pub struct ImageInfoSearchOptions {
     pub start_date: Option<DateTime<FixedOffset>>,
     

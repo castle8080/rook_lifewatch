@@ -32,6 +32,10 @@ struct Cli {
     /// Directory to serve var data from
     #[arg(long, default_value = "var")]
     var_dir: String,
+
+    /// Directory the daemon home is
+    #[arg(long, default_value = ".")]
+    app_dir: String,
 }
 
 async fn run() -> RookLWAdminResult<()> {
@@ -58,6 +62,7 @@ async fn run() -> RookLWAdminResult<()> {
     std::fs::create_dir_all(&var_dir)?;
     info!("Serving var_data from directory: {}", &var_dir);
 
+    // List on all interfaces.
     let host = "0.0.0.0";
 
     // Check for https certificates.
@@ -67,7 +72,8 @@ async fn run() -> RookLWAdminResult<()> {
     // Setup the app.
     let app_state = app::create_app(
         &var_dir, 
-        format!("{}/admin", &www_dir).as_str()
+        format!("{}/admin", &www_dir).as_str(),
+        &cli.app_dir,
     )?;
 
     let server = HttpServer::new(move || {
@@ -82,11 +88,11 @@ async fn run() -> RookLWAdminResult<()> {
                     .files_listing_renderer(controllers::directory::sorted_listing),
             )
             .service(web::scope("")
-                .configure(controllers::hello::register)
+                .configure(controllers::admin::register)
+                .configure(controllers::daemon::register)
                 .configure(controllers::home::register)
                 .configure(controllers::image::register)
                 .configure(controllers::process::register)
-                .configure(controllers::admin::register)
                 .service(
                     fs::Files::new("/", &www_dir)
                         .index_file("index.html")

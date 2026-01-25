@@ -9,9 +9,9 @@ use crate::app::AppState;
 
 /// Handler for /admin and /admin/*
 pub async fn admin_handler(
-    state: web::Data<AppState>,
-    tail: Option<web::Path<String>>,
-) -> RookLWAdminResult<impl Responder>
+        state: web::Data<AppState>,
+        tail: Option<web::Path<String>>,
+    ) -> RookLWAdminResult<impl Responder>
 {
     let rel_path: PathBuf = match tail {
         Some(tail_path) => tail_path.into_inner().into(),
@@ -28,7 +28,8 @@ pub async fn admin_handler(
     let file_path = Path::new(&state.admin_static_dir).join(&rel_path);
     if file_path.exists() && file_path.is_file() {
         Ok(Either::Left(NamedFile::open(file_path)?))
-    } else {
+    }
+    else {
         // fallback to index.html, prevent caching
         use actix_web::http::header;
         let file = NamedFile::open(Path::new(&state.admin_static_dir).join("index.html"))?;

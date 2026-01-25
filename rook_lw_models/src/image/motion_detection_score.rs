@@ -3,7 +3,7 @@ use std::{collections::HashMap, fmt};
 
 use serde::{Serialize, Deserialize};
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Default)]
 pub struct MotionDetectionScore {
     pub score: f32,
     pub detected: bool,

@@ -2,7 +2,7 @@
 use serde::{Deserialize, Serialize};
 
 /// A single object detection result.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct Detection {
     pub class_id: i32,
     pub class_name: String,

@@ -1,5 +1,4 @@
 use gloo_net::http::Request;
-use leptos::html::base;
 use serde_qs;
 
 use rook_lw_models::image::{ImageInfo, ImageInfoSearchOptions};
