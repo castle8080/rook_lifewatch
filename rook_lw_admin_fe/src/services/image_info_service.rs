@@ -3,7 +3,7 @@ use serde_qs;
 
 use rook_lw_models::image::{ImageInfo, ImageInfoSearchOptions};
 
-use crate::RookLWAppResult;
+use crate::{RookLWAppResult, services::response_ok};
 
 #[derive(Debug, Clone)]
 pub struct ImageInfoService {
@@ -22,12 +22,13 @@ impl ImageInfoService {
         let query_str = serde_qs::to_string(search_options)?;
         let url = format!("{}/api/image_info?{}", &self.base_path, &query_str);
 
-        let images = Request::get(url.as_str())
+        let resp = Request::get(url.as_str())
             .send()
-            .await?
-            .json::<Vec<ImageInfo>>()
             .await?;
 
+        let resp = response_ok(resp).await?;
+            
+        let images = resp.json::<Vec<ImageInfo>>().await?;
         Ok(images)
     }
 }

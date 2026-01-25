@@ -9,6 +9,12 @@ pub enum RookLWAppError {
 
     #[error("parse error: {0}")]
     Parse(String),
+
+    #[error("request error: {0}")]
+    Request(String),
+
+    #[error("server error: {0}")]
+    Server(String),
 }
 
 impl From<gloo_net::Error> for RookLWAppError {

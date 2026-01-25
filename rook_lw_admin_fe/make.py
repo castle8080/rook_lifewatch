@@ -23,9 +23,11 @@ def init_dev():
 
 def run():
     init_dev()
+    proxy_endpoint = os.environ.get("ROOK_LW_PROXY", "http://localhost:8080/api")
+    print(f"Proxying to: {proxy_endpoint}")
     subprocess.run([
         "trunk", "serve", "--port", "8081", "--public-url", "/admin/",
-        "--proxy-backend=http://localhost:8080/api"
+        f"--proxy-backend={proxy_endpoint}"
     ], check=True)
 
 def build():
