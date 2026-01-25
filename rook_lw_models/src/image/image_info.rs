@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use super::MotionDetectionScore;
 use super::Detection;
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct ImageInfo {
     pub image_id: String,
     pub event_id: String,

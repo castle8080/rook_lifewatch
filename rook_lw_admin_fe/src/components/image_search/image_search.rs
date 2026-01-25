@@ -1,32 +1,15 @@
 use leptos::*;
 use leptos::prelude::*;
+use leptos::task::spawn_local;
 
-use gloo_net::http::Request;
-use serde_qs;
+use rook_lw_models::image::{ImageInfoSearchOptions, ImageInfo, Detection};
+use crate::services::ImageInfoService;
 
-use rook_lw_models::image::{ImageInfoSearchOptions, ImageInfo};
-use crate::RookLWAppResult;
-
-async fn fetch_image_infos() -> RookLWAppResult<Vec<ImageInfo>> {
-    let query = ImageInfoSearchOptions {
-        start_date: None,
-        end_date: None,
-        ..Default::default()
-    };
-
-    let query_str = serde_qs::to_string(&query)?;
-    let url = format!("/api/image_info?{}", &query_str);
-
-    let mut images = Request::get(url.as_str())
-        .send()
-        .await?
-        .json::<Vec<ImageInfo>>()
-        .await?;
-
-    images.sort_by(|a, b| b.capture_timestamp.cmp(&a.capture_timestamp));
-    images.truncate(500);
-
-    Ok(images)
+#[component]
+fn ImageInfoDetection(detection: Detection) -> impl IntoView {
+    view! {
+        <span>{ detection.class_name } ": " { detection.confidence }</span><br/>
+    }
 }
 
 #[component]
@@ -40,55 +23,101 @@ pub fn ImageInfo(image_info: ImageInfo) -> impl IntoView {
             </td>
             <td>{ image_info.motion_score.score }</td>
             <td>
-            { match &image_info.detections {
-                None => view! { "No Detections" }.into_any(),
-                Some(detections) => view! {
-                    { detections.iter().map(|d| {
-                        view! {
-                            <span>{ d.class_name.as_str() } ": " { d.confidence }</span><br/>
-                        }
-                    }).collect_view() }
-                }.into_any(),
-            } }
+                { match &image_info.detections {
+                    None => view! { "No Detections" }.into_any(),
+                    Some(detections) =>
+                        detections
+                            .iter()
+                            .map(|d| view! { <ImageInfoDetection detection=d.clone() /> })
+                            .collect_view()
+                            .into_any()
+                } }
             </td>
         </tr>
     }
 }
 
 #[component]
+fn ImageInfos(image_infos: ReadSignal<Option<Vec<ImageInfo>>>) -> impl IntoView {
+    view! {
+        <table>
+            <thead>
+                <tr>
+                    <th>"Image Taken"</th>
+                    <th>"Motion Score"</th>
+                    <th>"Detections"</th>
+                </tr>
+            </thead>
+            <tbody>
+                <For
+                    each=move || image_infos.get().unwrap_or_else(Vec::new)
+                    key=|image_info| image_info.image_id.clone()
+                    let (image_info)
+                >
+                    <ImageInfo image_info=image_info/>
+                </For>
+            </tbody>
+        </table>
+    }
+}
+
+#[component]
 pub fn ImageSearch() -> impl IntoView {
-    let image_info_data = LocalResource::new(move || fetch_image_infos());
+    let (error, set_error) = signal(None::<String>);
+    let (loading, set_loading) = signal(false);
+    let (image_infos, set_image_infos) = signal(None::<Vec<ImageInfo>>);
+
+    let image_info_service = match use_context::<ImageInfoService>() {
+        Some(s) => s,
+        None => return view! {
+            <div>Error</div>
+        }.into_any()
+    };
+
+    Effect::new(move |_| {
+        let set_error = set_error.clone();
+        let set_loading = set_loading.clone();
+        let image_info_service = image_info_service.clone();
+        let set_image_infos = set_image_infos.clone();
+
+        set_error.set(None);
+        set_loading.set(true);
+
+        spawn_local(async move {
+            let search_options = ImageInfoSearchOptions::default();
+            match image_info_service.search(&search_options).await {
+                Err(e) => {
+                    set_loading.set(false);
+                    set_error.set(Some(format!("Error: {}", e)));
+                }
+                Ok(image_info) => {
+                    set_loading.set(false);
+                    set_image_infos.set(Some(image_info));
+                } 
+            }
+        });
+    });
 
     view! {
         <div class="image-search-component">
             <h1>"Images"</h1>
-            { move || {
-                match image_info_data.get() {
-                    None => view! {
-                        <div>"Loading..."</div>
-                    }.into_any(),
-                    Some(Err(e)) => view! {
-                        <div>"Error loading images: " { e.to_string() }</div>
-                    }.into_any(),
-                    Some(Ok(image_infos)) => view! {
-                        <table>
-                        <thead>
-                            <tr>
-                                <th>"Image Taken"</th>
-                                <th>"Motion Score"</th>
-                                <th>"Detections"</th>
-                            </tr>
-
-                        </thead>
-                        <tbody>
-                            { image_infos.into_iter().map(|image_info| {
-                                view! { <ImageInfo image_info=image_info /> }
-                            }).collect_view() }
-                        </tbody>
-                        </table>
-                    }.into_any(),
+            { move ||
+                if loading.get() {
+                    view! {
+                        <div>Loading...</div>
+                    }.into_any()
                 }
-            }}
+                else if let Some(e) = error.get() { 
+                    view! {
+                        <div>{e}</div>
+                    }.into_any()
+                }
+                else {
+                    view! {
+                        <ImageInfos image_infos=image_infos/>
+                    }.into_any()
+                }
+            }
         </div>
-    }
+    }.into_any()
 }
