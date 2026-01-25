@@ -22,7 +22,9 @@ def run():
         "cargo", "run", "--release", "--",
         "--protocol", "http", "--port", "8080",
         "--www-dir", "../dist/www",
-        "--var-dir", "../dist/var"], check=True)
+        "--var-dir", "../dist/var",
+        "--app-dir", "../dist",
+    ], check=True)
 
 def _install_static_files():
     source_dir = "www"

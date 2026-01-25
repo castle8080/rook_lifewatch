@@ -21,6 +21,13 @@ pub async fn daemon_status(state: web::Data<AppState>)
     }
 }
 
+pub async fn daemon_start(state: web::Data<AppState>)
+    -> Result<impl Responder, RookLWAdminError>
+{
+    let process_info = spawn_blocking(move || state.daemon_service.start()).await??;
+    Ok(HttpResponse::Ok().json(process_info))
+}
+
 pub async fn daemon_stop(state: web::Data<AppState>)
     -> Result<impl Responder, RookLWAdminError>
 {
@@ -31,4 +38,5 @@ pub async fn daemon_stop(state: web::Data<AppState>)
 pub fn register(sc: &mut ServiceConfig) {
     sc.route("/api/daemon/status", web::get().to(daemon_status));
     sc.route("/api/daemon/stop", web::post().to(daemon_stop));
+    sc.route("/api/daemon/start", web::post().to(daemon_start));
 }

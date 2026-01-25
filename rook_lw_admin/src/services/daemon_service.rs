@@ -1,3 +1,7 @@
+use std::time::Duration;
+use std::{path::PathBuf, thread::sleep};
+use std::process::Command;
+
 use sysinfo::{System, ProcessesToUpdate, Process};
 use chrono::DateTime;
 use tracing::info;
@@ -18,6 +22,78 @@ impl DaemonService {
         Ok(Self {
             app_dir: app_dir.into()
         })
+    }
+
+    pub fn start(self: &Self) -> RookLWAdminResult<ProcessInfo> {
+        info!("Start requested for daemon.");
+        
+        if let Some(p) = self.get_status()? {
+            return Err(RookLWAdminError::Other(format!("Process already running: {}", p.pid)));
+        }
+
+        let command = self.build_start_command()?;
+
+        let mut cmd = Command::new(&command[0]);
+        cmd.args(&command[1..]);
+        cmd.current_dir(&self.app_dir);
+        
+        // todo: use setsid on unix
+
+        let _process = cmd.spawn()?;
+
+        // Give 2 seconds for the spawned daemon to warm up.
+        // Then find the running process, which was probably forked from the
+        // start script.
+        // Todo: convert methods to be async
+        // This method here can use sleep from tokio, but other methods
+        // need to have spawn_blocking moved into the method bodies when
+        // interacting with process lists.
+        sleep(Duration::from_secs(2));
+
+        match self.get_status()? {
+            Some(p) => Ok(p.clone()),
+            None => Err(RookLWAdminError::Other("Daemon process unexpectedly stopped.".into()))
+        }
+    }
+
+    fn build_start_command(self: &Self) -> RookLWAdminResult<Vec<String>> {
+        #[cfg(windows)]
+        return self.build_start_command_windows();
+        #[cfg(unix)]
+        return self.build_start_command_nix();
+    }
+
+    #[cfg(windows)]
+    fn build_start_command_windows(self: &Self) -> RookLWAdminResult<Vec<String>> {
+        // Need to run through cmd.
+        let mut command: Vec<String> = vec!["cmd".into(), "/C".into()];
+
+        let mut start_script = PathBuf::from(&self.app_dir);
+        start_script.push("bin");
+        start_script.push("start_rook_lw_daemon.cmd");
+
+        if !start_script.exists() {
+            return Err(RookLWAdminError::Other("Could not locate start script for daemon.".into()));
+        }
+        command.push(start_script.to_string_lossy().into());
+
+        Ok(command)
+    }
+
+    #[cfg(unix)]
+    fn build_start_command_nix(self: &Self) -> RookLWAdminResult<Vec<String>> {
+        let mut command: Vec<String> = Vec::new();
+
+        let mut start_script = PathBuf::from(&self.app_dir);
+        start_script.push("bin");
+        start_script.push("start_rook_lw_daemon.sh");
+
+        if !start_script.exists() {
+            return Err(RookLWAdminError::Other("Could not locate start script for daemon.".into()));
+        }
+        command.push(start_script.to_string_lossy().into());
+
+        Ok(command)
     }
 
     pub fn stop(self: &Self) -> RookLWAdminResult<String> {
