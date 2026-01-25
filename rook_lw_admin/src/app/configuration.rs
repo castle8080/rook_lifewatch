@@ -48,5 +48,5 @@ fn create_image_store_repository(var_dir: &str) -> RookLWAdminResult<Box<dyn Ima
 }
 
 fn create_daemon_service(app_dir: &str) -> RookLWAdminResult<DaemonService> {
-    DaemonService::create(app_dir)
+    DaemonService::new(app_dir)
 }
