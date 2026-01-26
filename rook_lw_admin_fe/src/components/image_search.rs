@@ -3,6 +3,8 @@ use leptos::prelude::*;
 use leptos::task::spawn_local;
 
 use rook_lw_models::image::{ImageInfoSearchOptions, ImageInfo, Detection};
+
+use crate::components::ErrorDisplay;
 use crate::services::ImageInfoService;
 
 #[component]
@@ -100,16 +102,12 @@ pub fn ImageSearch() -> impl IntoView {
 
     view! {
         <div class="image-search-component">
-            <h1>"Images"</h1>
+            <h1>"Image Search"</h1>
+            <ErrorDisplay error=error/>
             { move ||
                 if loading.get() {
                     view! {
                         <div>Loading...</div>
-                    }.into_any()
-                }
-                else if let Some(e) = error.get() { 
-                    view! {
-                        <div>{e}</div>
                     }.into_any()
                 }
                 else {

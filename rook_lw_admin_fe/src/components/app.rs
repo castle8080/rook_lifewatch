@@ -3,9 +3,9 @@ use leptos::prelude::*;
 use leptos_router::components::*;
 use leptos_router::path;
 
-use crate::components::admin::Admin;
-use crate::components::daemon::DaemonControl;
-use crate::components::image_search::ImageSearch;
+use crate::components::Admin;
+use crate::components::DaemonControl;
+use crate::components::ImageSearch;
 
 use crate::services::ImageInfoService;
 use crate::services::DaemonService;
