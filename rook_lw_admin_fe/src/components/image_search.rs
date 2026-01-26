@@ -42,7 +42,7 @@ pub fn ImageInfo(image_info: ImageInfo) -> impl IntoView {
 #[component]
 fn ImageInfos(image_infos: ReadSignal<Option<Vec<ImageInfo>>>) -> impl IntoView {
     view! {
-        <table>
+        <table class="table is-striped is-hoverable is-fullwidth">
             <thead>
                 <tr>
                     <th>"Image Taken"</th>
@@ -95,27 +95,36 @@ pub fn ImageSearch() -> impl IntoView {
                 Ok(image_info) => {
                     set_loading.set(false);
                     set_image_infos.set(Some(image_info));
-                } 
+                }
             }
         });
     });
 
     view! {
-        <div class="image-search-component">
-            <h1>"Image Search"</h1>
-            <ErrorDisplay error=error/>
-            { move ||
-                if loading.get() {
-                    view! {
-                        <div>Loading...</div>
-                    }.into_any()
+        <div class="image-search-component card" style="max-width: 900px; margin: 2em auto;">
+            <header class="card-header">
+                <p class="card-header-title">
+                    <span class="icon has-text-info" style="margin-right: 0.5em;"><i class="fas fa-search"></i></span>
+                    Image Search
+                </p>
+            </header>
+            <div class="card-content">
+                <div style="margin-bottom: 1em;">
+                    <ErrorDisplay error=error/>
+                </div>
+                { move ||
+                    if loading.get() {
+                        view! {
+                            <div class="notification is-info is-light">Loading...</div>
+                        }.into_any()
+                    }
+                    else {
+                        view! {
+                            <ImageInfos image_infos=image_infos/>
+                        }.into_any()
+                    }
                 }
-                else {
-                    view! {
-                        <ImageInfos image_infos=image_infos/>
-                    }.into_any()
-                }
-            }
+            </div>
         </div>
     }.into_any()
 }
