@@ -7,6 +7,8 @@ use crate::components::Admin;
 use crate::components::DaemonControl;
 use crate::components::ImageSearch;
 
+use crate::components::NavBar;
+
 use crate::services::ImageInfoService;
 use crate::services::DaemonService;
 
@@ -15,7 +17,7 @@ pub fn App() -> impl IntoView {
     provide_context(ImageInfoService::new(""));
     provide_context(DaemonService::new(""));
     view! {
-        <h1>"Rook Life Watch"</h1>
+        <NavBar />
         <Router base="/admin">
             <Routes fallback=Admin>
                 <Route
