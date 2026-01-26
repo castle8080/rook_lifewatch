@@ -16,7 +16,7 @@ async fn run_shutdown_command() -> RookLWAdminResult<String> {
         "sudo".into(),
         "-n".into(),
         "/usr/bin/systemctl".into(),
-        "poweroffx".into(),
+        "poweroff".into(),
     ];
 
     #[cfg(windows)]
