@@ -22,7 +22,7 @@ doownlad_scripts = [
     "scripts/install-onnxruntime.py",
 ]
 
-install_script_re = re.compile(r"(start_rook_lw|stop_rook_lw|run_daemon|gen_self_signed_cert).*\.(py|sh|cmd)$")
+install_script_re = re.compile(r"(start_rook_lw|stop_rook_lw|run_daemon|gen_self_signed_cert|install_admin_service).*\.(py|sh|cmd)$")
 
 def cmd(dir, *command):
     print(f"Running command: {' '.join(command)}")

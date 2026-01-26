@@ -1,4 +1,4 @@
-#!/bin/python3
+#!/usr/bin/env python3
 import os
 from urllib.request import urlopen
 from urllib.parse import urlparse

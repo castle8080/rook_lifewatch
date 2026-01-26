@@ -1,8 +1,9 @@
-#!/bin/python3
+#!/usr/bin/env python3
 #
-# Run a daemon process in the background, ensuring only one instance is running.
+# Run a daemon process.
 #
 import os
+import sys
 import subprocess
 import datetime as dt
 
@@ -71,14 +72,31 @@ log_dir = os.path.join(data_dir, "logs")
 os.makedirs(log_dir, exist_ok=True)
 log_file = os.path.join(log_dir, f"{daemon_name}_{start_timestamp}.log")
 
-# Launch the daemon process in a detached subprocess
-with open(log_file, 'a') as lf:
-    print(f"Launching daemon process '{daemon_process}' with args: {daemon_args}")
-    process = subprocess.Popen(
-        [daemon_process] + daemon_args,
-        stdout=lf,
-        stderr=lf,
-        preexec_fn=os.setsid
-    )
-    print(f"Started daemon process '{daemon_process}' with PID {process.pid}")
-    print(f"Logs are being written to: {log_file}")
+if os.environ.get("INVOCATION_ID") is not None:
+    # running under systemd -- don't detach
+    print("Running under systemd, execing Rust daemon: pid =", os.getpid())
+
+    # Clean environment
+    clean_env = os.environ.copy()
+    for var in ["INVOCATION_ID", "JOURNAL_STREAM", "NOTIFY_SOCKET"]:
+        clean_env.pop(var, None)
+
+    with open(log_file, 'a') as lf:
+        os.dup2(lf.fileno(), sys.stdout.fileno())
+        os.dup2(lf.fileno(), sys.stderr.fileno())
+        os.execvpe(daemon_process, [daemon_process] + daemon_args, clean_env)
+
+else:
+    # Launch the daemon process in a detached subprocess
+    print("Launching detached Rust daemon")
+
+    with open(log_file, 'a') as lf:
+        print(f"Launching daemon process '{daemon_process}' with args: {daemon_args}")
+        process = subprocess.Popen(
+            [daemon_process] + daemon_args,
+            stdout=lf,
+            stderr=lf,
+            preexec_fn=os.setsid
+        )
+        print(f"Started daemon process '{daemon_process}' with PID {process.pid}")
+        print(f"Logs are being written to: {log_file}")
