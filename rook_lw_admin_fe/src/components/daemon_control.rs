@@ -18,27 +18,29 @@ use crate::services::DaemonService;
 fn ProcessInfoTable(process_info: ProcessInfo) -> impl IntoView {
     let cpu_accumulated = Duration::from_millis(process_info.cpu_accumulated_time);
     view! {
-        <table>
-            <tr>
-                <th>"Pid:"</th>
-                <td>{process_info.pid}</td>
-            </tr>
-            <tr>
-                <th>"Command:"</th>
-                <td>{process_info.cmd}</td>
-            </tr>
-            <tr>
-                <th>"Memory:"</th>
-                <td>{ process_info.memory.to_formatted_string(&Locale::en) }</td>
-            </tr>
-            <tr>
-                <th>"Started:"</th>
-                <td>{ process_info.started.to_rfc2822() }</td>
-            </tr>
-            <tr>
-                <th>"CPU Accumulated Time:"</th>
-                <td>{ format!("{}", format_duration(cpu_accumulated)) }</td>
-            </tr>
+        <table class="table is-bordered is-striped is-narrow is-hoverable is-fullwidth">
+            <tbody>
+                <tr>
+                    <th>"Pid:"</th>
+                    <td>{process_info.pid}</td>
+                </tr>
+                <tr>
+                    <th>"Command:"</th>
+                    <td>{process_info.cmd}</td>
+                </tr>
+                <tr>
+                    <th>"Memory:"</th>
+                    <td>{ process_info.memory.to_formatted_string(&Locale::en) }</td>
+                </tr>
+                <tr>
+                    <th>"Started:"</th>
+                    <td>{ process_info.started.to_rfc2822() }</td>
+                </tr>
+                <tr>
+                    <th>"CPU Accumulated Time:"</th>
+                    <td>{ format!("{}", format_duration(cpu_accumulated)) }</td>
+                </tr>
+            </tbody>
         </table>
     }
 }
@@ -50,21 +52,22 @@ pub fn ProcessInfo(process_info: ReadSignal<Option<Option<ProcessInfo>>>) -> imp
             { move ||
                 match process_info.get() {
                     None => view! {
-                        <span>
-                            "Deamon status is unknown."
-                        </span>
+                        <div class="notification is-warning is-light">
+                            <span>"Daemon status is unknown."</span>
+                        </div>
                     }.into_any(),
                     Some(None) => view! {
-                        <span>
-                            "Deamon status is not active."
-                        </span>
+                        <div class="notification is-danger is-light">
+                            <span>"Daemon is not active."</span>
+                        </div>
                     }.into_any(),
                     Some(Some(pi)) => view! {
-                        <span>
-                            "Daemon running."
-                            <br/>
-                            <ProcessInfoTable process_info=pi.clone()/>
-                        </span>
+                        <div class="notification is-success is-light">
+                            <span class="has-text-weight-semibold">"Daemon running."</span>
+                            <div style="margin-top: 0.5em;">
+                                <ProcessInfoTable process_info=pi.clone()/>
+                            </div>
+                        </div>
                     }.into_any()
                 }
             }
@@ -79,12 +82,16 @@ where
     F2: Fn(MouseEvent) + 'static,
 {
     view! {
-        <button class="button" on:click=on_start>
-            "Start"
-        </button>
-        <button class="button" on:click=on_stop>
-            "Stop"
-        </button>
+        <div class="buttons is-centered" style="margin-top: 1em;">
+            <button class="button is-success" on:click=on_start>
+                <span class="icon"><i class="fas fa-play"></i></span>
+                <span>"Start"</span>
+            </button>
+            <button class="button is-danger" on:click=on_stop>
+                <span class="icon"><i class="fas fa-stop"></i></span>
+                <span>"Stop"</span>
+            </button>
+        </div>
     }
 }
 
@@ -184,11 +191,18 @@ pub fn DaemonControl() -> impl IntoView {
     };
 
     view! {
-        <div class="daemon_control">
-            <h1>"Daemon Control"</h1>
-            <ErrorDisplay error=error/>
-            <ProcessInfo process_info=process_info/>
-            <ControlButtons on_start=on_start on_stop=on_stop />
+        <div class="daemon_control card" style="max-width: 500px; margin: 2em auto;">
+            <header class="card-header">
+                <p class="card-header-title">
+                    <span class="icon has-text-info" style="margin-right: 0.5em;"><i class="fas fa-cogs"></i></span>
+                    Daemon Control
+                </p>
+            </header>
+            <div class="card-content">
+                <ErrorDisplay error=error/>
+                <ProcessInfo process_info=process_info/>
+                <ControlButtons on_start=on_start on_stop=on_stop />
+            </div>
         </div>
     }.into_any()
 
