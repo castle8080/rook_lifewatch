@@ -30,14 +30,14 @@ pub fn NavBar() -> impl IntoView {
                 class=move || if is_active.get() { "navbar-menu is-active" } else { "navbar-menu" }
             >
                 <div class="navbar-start">
-                    <a class="navbar-item" href="/admin/" on:click=move |_| set_is_active.set(false)>
-                        Home
-                    </a>
                     <a class="navbar-item" href="/admin/images" on:click=move |_| set_is_active.set(false)>
-                        Image Search
+                        "Image Search"
                     </a>
                     <a class="navbar-item" href="/admin/daemon" on:click=move |_| set_is_active.set(false)>
-                        Daemon Control
+                        "Daemon Control"
+                    </a>
+                    <a class="navbar-item" href="/admin/serverops" on:click=move |_| set_is_active.set(false)>
+                        "Server Operations"
                     </a>
                 </div>
             </div>

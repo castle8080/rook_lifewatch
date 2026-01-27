@@ -6,6 +6,8 @@ use tokio::task::spawn_blocking;
 
 use crate::{RookLWAdminError, RookLWAdminResult};
 
+use tracing::info;
+
 async fn run_shutdown_command() -> RookLWAdminResult<String> {
 
     // The shutdown command needs to be added to sudeo NOPASSD to work:
@@ -29,6 +31,8 @@ async fn run_shutdown_command() -> RookLWAdminResult<String> {
     
     let mut cmd = Command::new(&command[0]);
     cmd.args(&command[1..]);
+
+    info!(command=?command, "Running shutdown command.");
 
     let output = spawn_blocking(move || cmd.output()).await??;
 
