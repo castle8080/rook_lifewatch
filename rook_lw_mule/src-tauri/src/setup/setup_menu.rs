@@ -1,21 +1,37 @@
+use std::sync::Mutex;
+
 use tauri::{App, AppHandle, Url};
 use tauri::menu::{Menu, Submenu, PredefinedMenuItem, MenuItem, MenuEvent};
 use tauri::Manager;
 
-use tracing::error;
+use tracing::{info, error};
 
 use crate::RookLWMuleResult;
+use crate::app::AppState;
 
+/*
 fn get_main_url() -> Url {
      Url::parse(match tauri::is_dev() {
         true => "http://localhost:1420/",
         false => "http://tauri.localhost/",
     }).unwrap()
 }
+    */
 
 fn on_view_main(app: &AppHandle, _event: MenuEvent) -> RookLWMuleResult<()> {
     if let Some(w) = app.get_webview_window("main") {
-        w.navigate(get_main_url().into())?;
+        let home_url = {
+            let app_state = app.state::<Mutex<AppState>>();
+            let app_state = app_state.lock().unwrap();
+            app_state
+                .get_home_url()
+                .as_ref()
+                .and_then(|url| Url::parse(url).ok())
+        };
+        if let Some(home_url) = home_url {
+            info!("Navigating back to: {}", &home_url);
+            w.navigate(home_url)?;
+        }
     }
     Ok(())
 }
@@ -27,7 +43,7 @@ fn on_view_devtools(app: &AppHandle, _event: MenuEvent) ->RookLWMuleResult<()> {
     Ok(())
 }
 
-fn _setup_menu(app: &mut App) -> RookLWMuleResult<()> {
+fn _setup(app: &mut App) -> RookLWMuleResult<()> {
     let menu = Menu::new(app)?;
 
     let quit = PredefinedMenuItem::quit(app, None)?;
@@ -51,6 +67,7 @@ fn _setup_menu(app: &mut App) -> RookLWMuleResult<()> {
             Ok(())
         };
         if let Err(e) = action_result {
+            // Todo: find a way to surface errors in the app.
             error!("Error: menu action: {}", e);
         }
     });
@@ -60,6 +77,6 @@ fn _setup_menu(app: &mut App) -> RookLWMuleResult<()> {
     Ok(())
 }
 
-pub fn setup_menu(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
-    _setup_menu(app).map_err(|e| Box::new(e) as Box<dyn std::error::Error>)
+pub fn setup(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
+    _setup(app).map_err(|e| Box::new(e) as Box<dyn std::error::Error>)
 }

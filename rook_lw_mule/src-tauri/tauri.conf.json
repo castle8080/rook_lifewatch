@@ -18,10 +18,7 @@
         "height": 600,
         "devtools": true
       }
-    ],
-    "security": {
-      "csp": null
-    }
+    ]
   },
   "bundle": {
     "active": true,

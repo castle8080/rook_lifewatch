@@ -8,7 +8,7 @@ use std::path::Path;
 
 use crate::RookLWMuleResult;
 
-pub fn init_logging() -> RookLWMuleResult<WorkerGuard> {
+pub fn setup() -> RookLWMuleResult<WorkerGuard> {
     let log_dir = Path::new("logs");
     std::fs::create_dir_all(log_dir)?;
     let file_appender = RollingFileAppender::new(Rotation::DAILY, log_dir, "app.log");

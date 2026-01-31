@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    rook_lw_mule_lib::app::init::run();
+    rook_lw_mule_lib::setup::run();
 }

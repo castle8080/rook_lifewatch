@@ -1,16 +1,26 @@
 use leptos::task::spawn_local;
-use leptos::{ev::SubmitEvent, prelude::*};
-use serde::{Deserialize, Serialize};
+use leptos::prelude::*;
+use serde_json::json;
+use serde_wasm_bindgen::to_value;
 
 use tracing::info;
+
+use crate::services::command;
+
 
 #[component]
 pub fn App() -> impl IntoView {
 
     let on_action = move |_| {
         info!("On action.....");
-
-        
+        spawn_local(async move {
+            let json = json!({
+                "name": "Mr. Bryan"
+            });
+            let payload = to_value(&json).unwrap();
+            let r = command::invoke("greet", payload).await;
+            tracing::info!("Result: {:?}", r);
+        });
     };
 
     view! {
