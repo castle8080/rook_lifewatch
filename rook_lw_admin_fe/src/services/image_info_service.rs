@@ -3,7 +3,8 @@ use serde_qs;
 
 use rook_lw_models::image::{ImageInfo, ImageInfoSearchOptions};
 
-use crate::{RookLWAppResult, services::response_ok};
+use crate::RookLWAppResult;
+use crate::services::response_ok;
 
 #[derive(Debug, Clone)]
 pub struct ImageInfoService {
@@ -14,6 +15,25 @@ impl ImageInfoService {
 
     pub fn new(base_path: impl Into<String>) -> Self {
         Self { base_path: base_path.into() }
+    }
+
+    pub async fn get(&self, image_id: impl AsRef<str>)
+        -> RookLWAppResult<Option<ImageInfo>>
+    {
+        let url = format!("{}/api/image_info/{}", &self.base_path, image_id.as_ref());
+
+        let resp = Request::get(url.as_str())
+            .send()
+            .await?;
+
+        let resp = response_ok(resp).await?;
+
+        if resp.ok() {
+            Ok(Some(resp.json::<ImageInfo>().await?))
+        }
+        else {
+            Ok(None)
+        }
     }
 
     pub async fn search(&self, search_options: &ImageInfoSearchOptions)
@@ -32,6 +52,4 @@ impl ImageInfoService {
         Ok(images)
     }
 }
-
-
 

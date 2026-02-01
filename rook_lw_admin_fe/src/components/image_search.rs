@@ -19,7 +19,8 @@ pub fn ImageInfo(image_info: ImageInfo) -> impl IntoView {
     view! {
         <tr>
             <td>
-                <a href={ format!("/var/images/{}", image_info.image_path) } target="rook_lw_image_view">
+                <a href={ format!("image_display/{}", image_info.image_id) } >
+                //<a href={ format!("/var/images/{}", image_info.image_path) } target="rook_lw_image_view">
                     { image_info.capture_timestamp.to_string() }
                 </a>
             </td>

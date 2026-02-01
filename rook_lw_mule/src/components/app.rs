@@ -26,7 +26,7 @@ pub fn App() -> impl IntoView {
     view! {
         <main class="container">
             "Load the admin page!"
-            <a href="http://192.168.1.22:8080/admin">"Load Admin"</a>
+            <a href="http://127.0.0.1:8081/admin/">"Load Admin"</a>
             <p>
                 <button on:click=on_action>"Press Me"</button>
             </p>

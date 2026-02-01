@@ -31,7 +31,7 @@ impl ImageStoreRepository for ImageStoreRepositoryFile {
         Ok(())
     }
     
-    fn read<'a>(&'a self, image_name: &str) -> ImageRepoResult<Box<dyn Read + 'a>> {
+    fn read<'a>(&'a self, image_name: &str) -> ImageRepoResult<Box<dyn Read + Send + 'a>> {
         let image_path = self.image_directory.join(image_name);
         info!("Reading image from {:?}", image_path);
         let file = File::open(image_path)?;

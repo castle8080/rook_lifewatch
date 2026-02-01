@@ -26,7 +26,7 @@ fn ProcessInfoTable(process_info: ProcessInfo) -> impl IntoView {
                 </tr>
                 <tr>
                     <th>"Command:"</th>
-                    <td>{process_info.cmd}</td>
+                    <td style="overflow-wrap: anywhere; word-break: break-word;">{process_info.cmd}</td>
                 </tr>
                 <tr>
                     <th>"Memory:"</th>

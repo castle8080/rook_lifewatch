@@ -5,6 +5,7 @@ use leptos_router::path;
 
 use crate::components::Admin;
 use crate::components::DaemonControl;
+use crate::components::ImageDisplay;
 use crate::components::ImageSearch;
 use crate::components::ServerOperations;
 use crate::components::NavBar;
@@ -34,6 +35,10 @@ pub fn App() -> impl IntoView {
                 <Route
                     path=path!("daemon")
                     view=DaemonControl
+                />
+                <Route
+                    path=path!("image_display/*image_id")
+                    view=ImageDisplay
                 />
             </Routes>
         </Router>

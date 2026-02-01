@@ -31,3 +31,6 @@ rusqlite = { version = "0.38.0", features = ["bundled"] }
 clap = { version = "4.5.54", features = ["derive"] }
 serde_qs = { version = "0.15.0", features = ["actix4"] }
 libc = "0.2.180"
+bytes = "1.6.0"
+tokio-stream = "0.1.15"
+futures-util = "0.3.31"

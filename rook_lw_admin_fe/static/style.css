@@ -8,3 +8,8 @@
     padding: 5px;
     text-align: left;
 }
+
+.image_display_detections th, .image_display_detections td {
+    padding: 5px;
+    text-align: left;
+}
