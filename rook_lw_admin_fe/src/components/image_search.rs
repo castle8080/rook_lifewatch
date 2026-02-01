@@ -20,7 +20,6 @@ pub fn ImageInfo(image_info: ImageInfo) -> impl IntoView {
         <tr>
             <td>
                 <a href={ format!("image_display/{}", image_info.image_id) } >
-                //<a href={ format!("/var/images/{}", image_info.image_path) } target="rook_lw_image_view">
                     { image_info.capture_timestamp.to_string() }
                 </a>
             </td>
@@ -43,24 +42,26 @@ pub fn ImageInfo(image_info: ImageInfo) -> impl IntoView {
 #[component]
 fn ImageInfos(image_infos: ReadSignal<Option<Vec<ImageInfo>>>) -> impl IntoView {
     view! {
-        <table class="table is-striped is-hoverable is-fullwidth">
-            <thead>
-                <tr>
-                    <th>"Image Taken"</th>
-                    <th>"Motion Score"</th>
-                    <th>"Detections"</th>
-                </tr>
-            </thead>
-            <tbody>
-                <For
-                    each=move || image_infos.get().unwrap_or_else(Vec::new)
-                    key=|image_info| image_info.image_id.clone()
-                    let (image_info)
-                >
-                    <ImageInfo image_info=image_info/>
-                </For>
-            </tbody>
-        </table>
+        <div class="image-search-results-container">
+            <table class="table is-striped is-hoverable is-fullwidth">
+                <thead>
+                    <tr>
+                        <th>"Image Taken"</th>
+                        <th>"Motion Score"</th>
+                        <th>"Detections"</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <For
+                        each=move || image_infos.get().unwrap_or_else(Vec::new)
+                        key=|image_info| image_info.image_id.clone()
+                        let (image_info)
+                    >
+                        <ImageInfo image_info=image_info/>
+                    </For>
+                </tbody>
+            </table>
+        </div>
     }
 }
 
@@ -102,11 +103,11 @@ pub fn ImageSearch() -> impl IntoView {
     });
 
     view! {
-        <div class="image-search-component card" style="max-width: 900px; margin: 2em auto;">
+        <div class="image-search-component card">
             <header class="card-header">
                 <p class="card-header-title">
                     <span class="icon has-text-info" style="margin-right: 0.5em;"><i class="fas fa-search"></i></span>
-                    Image Search
+                    "Image Search"
                 </p>
             </header>
             <div class="card-content">

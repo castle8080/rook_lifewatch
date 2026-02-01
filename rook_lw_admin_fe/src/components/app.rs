@@ -7,8 +7,9 @@ use crate::components::Admin;
 use crate::components::DaemonControl;
 use crate::components::ImageDisplay;
 use crate::components::ImageSearch;
-use crate::components::ServerOperations;
 use crate::components::NavBar;
+use crate::components::ScrollToTop;
+use crate::components::ServerOperations;
 
 use crate::services::ImageInfoService;
 use crate::services::DaemonService;
@@ -21,27 +22,34 @@ pub fn App() -> impl IntoView {
     provide_context(DaemonService::new(api_base_path));
     provide_context(ServeropsService::new(api_base_path));
     view! {
-        <NavBar />
-        <Router base="/admin">
-            <Routes fallback=Admin>
-                <Route
-                    path=path!("images")
-                    view=ImageSearch
-                />
-                <Route
-                    path=path!("serverops")
-                    view=ServerOperations
-                />
-                <Route
-                    path=path!("daemon")
-                    view=DaemonControl
-                />
-                <Route
-                    path=path!("image_display/*image_id")
-                    view=ImageDisplay
-                />
-            </Routes>
-        </Router>
+        <div class="app-shell">
+            <NavBar />
+            <div class="app-router">
+                <Router base="/admin">
+                    <main class="app-content">
+                        <ScrollToTop />
+                        <Routes fallback=Admin>
+                            <Route
+                                path=path!("images")
+                                view=ImageSearch
+                            />
+                            <Route
+                                path=path!("serverops")
+                                view=ServerOperations
+                            />
+                            <Route
+                                path=path!("daemon")
+                                view=DaemonControl
+                            />
+                            <Route
+                                path=path!("image_display/*image_id")
+                                view=ImageDisplay
+                            />
+                        </Routes>
+                    </main>
+                </Router>
+            </div>
+        </div>
     }
 }
 

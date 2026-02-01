@@ -10,7 +10,7 @@ use crate::services::ImageInfoService;
 #[component]
 pub fn ImageDetections(image_info: ImageInfo) -> impl IntoView {
     view! {
-        <table class="image_display_detections">
+        <table class="image-display-detections">
             <tr>
                 <th>"Class"</th>
                 <th>"Confidence"</th>
