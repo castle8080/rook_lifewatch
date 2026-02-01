@@ -1,6 +1,7 @@
 use leptos::*;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
+use web_sys::window;
 
 use rook_lw_models::image::{ImageInfoSearchOptions, ImageInfo, Detection};
 
@@ -41,8 +42,43 @@ pub fn ImageInfo(image_info: ImageInfo) -> impl IntoView {
 
 #[component]
 fn ImageInfos(image_infos: ReadSignal<Option<Vec<ImageInfo>>>) -> impl IntoView {
+    let container_ref: NodeRef<html::Div> = NodeRef::new();
+    let has_restored = RwSignal::new(false);
+
+    // saves scroll so when you return back to search
+    // it goes back to the previous scroll position.
+
+    let save_scroll = move || {
+        if let Some(div) = container_ref.get() {
+            if let Some(storage) = window().and_then(|w| w.session_storage().ok().flatten()) {
+                let _ = storage.set_item("image_search_scroll_top", &div.scroll_top().to_string());
+            }
+        }
+    };
+
+    Effect::new(move |_| {
+        if has_restored.get() {
+            return;
+        }
+
+        if let Some(div) = container_ref.get() {
+            if let Some(storage) = window().and_then(|w| w.session_storage().ok().flatten()) {
+                if let Ok(Some(value)) = storage.get_item("image_search_scroll_top") {
+                    if let Ok(scroll_top) = value.parse::<i32>() {
+                        div.set_scroll_top(scroll_top);
+                    }
+                }
+            }
+            has_restored.set(true);
+        }
+    });
+
     view! {
-        <div class="image-search-results-container">
+        <div
+            class="image-search-results-container"
+            node_ref=container_ref
+            on:scroll=move |_| save_scroll()
+        >
             <table class="table is-striped is-hoverable is-fullwidth">
                 <thead>
                     <tr>

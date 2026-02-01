@@ -8,7 +8,6 @@ use crate::components::DaemonControl;
 use crate::components::ImageDisplay;
 use crate::components::ImageSearch;
 use crate::components::NavBar;
-use crate::components::ScrollToTop;
 use crate::components::ServerOperations;
 
 use crate::services::ImageInfoService;
@@ -27,7 +26,6 @@ pub fn App() -> impl IntoView {
             <div class="app-router">
                 <Router base="/admin">
                     <main class="app-content">
-                        <ScrollToTop />
                         <Routes fallback=Admin>
                             <Route
                                 path=path!("images")
