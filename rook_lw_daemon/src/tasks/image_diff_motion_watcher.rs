@@ -24,7 +24,7 @@ struct MotionDetectionResult {
     pub capture_events: Vec<CaptureEvent>,
 }
 
-pub struct MotionWatcher {
+pub struct ImageDiffMotionWatcher {
     frame_source: Box<dyn FrameSource + Send>,
     producer_callbacks: ProducerCallbacks<ImageProcessingEvent>,
     motion_detect_interval: Duration,
@@ -35,13 +35,13 @@ pub struct MotionWatcher {
     round_interval: Duration,
 }
 
-impl ProducerTask<ImageProcessingEvent> for MotionWatcher {
+impl ProducerTask<ImageProcessingEvent> for ImageDiffMotionWatcher {
     fn get_producer_callbacks(&mut self) -> &mut ProducerCallbacks<ImageProcessingEvent> {
         &mut self.producer_callbacks
     }
 }
 
-impl MotionWatcher {
+impl ImageDiffMotionWatcher {
 
     pub fn new(
         frame_source: Box<dyn FrameSource + Send>,

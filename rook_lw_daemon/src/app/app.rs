@@ -1,6 +1,6 @@
 use crate::RookLWResult;
 use crate::events::ImageProcessingEvent;
-use crate::tasks::motion_watcher::MotionWatcher;
+use crate::tasks::image_diff_motion_watcher::ImageDiffMotionWatcher;
 use crate::tasks::image_storer::ImageStorer;
 use crate::tasks::image_detector::ImageDetector;
 use crate::prodcon::{ProducerTask, ConsumerTask};
@@ -8,7 +8,7 @@ use crate::prodcon::{ProducerTask, ConsumerTask};
 use tracing::error;
 
 pub struct App {
-    motion_watcher: MotionWatcher,
+    motion_watcher: ImageDiffMotionWatcher,
     image_storer: ImageStorer,
     image_detector: ImageDetector,
 }
@@ -16,7 +16,7 @@ pub struct App {
 impl App {
 
     pub fn new(
-        motion_watcher: MotionWatcher,
+        motion_watcher: ImageDiffMotionWatcher,
         image_storer: ImageStorer,
         image_detector: ImageDetector) -> Self {
         
@@ -28,7 +28,7 @@ impl App {
     }
 
     pub fn run(mut self) -> RookLWResult<()> {
-        // MotionWatcher produces CaptureEvents; a separate worker receives and processes them.
+        // ImageDiffMotionWatcher produces CaptureEvents; a separate worker receives and processes them.
         // Bounded provides backpressure so we don't buffer unbounded image data.
         let (motion_detected_tx, motion_detected_rx) = crossbeam_channel::bounded::<ImageProcessingEvent>(64);
 
