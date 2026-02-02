@@ -8,6 +8,8 @@ use crate::image::frame::FrameSourceFactory;
 use crate::image::fourcc::fourcc_to_string;
 use crate::image::motion::{YPlaneMotionDetector, YPlaneRollingZMotionDetector, YPlaneBoxedAverageMotionDetector, YPlaneMotionPercentileDetector};
 use crate::tasks::image_diff_motion_watcher::ImageDiffMotionWatcher;
+use crate::tasks::radar_motion_watcher::RadarMotionWatcher;
+use crate::tasks::motion_watcher::MotionWatcher;
 use crate::tasks::image_storer::ImageStorer;
 use crate::tasks::image_detector::ImageDetector;
 
@@ -83,16 +85,32 @@ fn create_image_detector(app_config: &AppConfiguration) -> RookLWResult<ImageDet
     ))
 }
 
-fn create_motion_watcher(app_config: &AppConfiguration, frame_source: Box<dyn FrameSource + Send>) -> RookLWResult<ImageDiffMotionWatcher> {
-    Ok(ImageDiffMotionWatcher::new(
-        frame_source,
-        Duration::from_millis(app_config.motion_watcher_interval_ms), // motion detect interval
-        app_config.motion_watcher_count,     // motion watch count
-        create_motion_detector(app_config)?,
-        app_config.motion_watcher_capture_count,     // capture count 
-        Duration::from_millis(app_config.motion_watcher_capture_interval_ms), // capture interval
-        Duration::from_millis(app_config.motion_watcher_round_interval_ms),    // round interval
-    ))
+fn create_motion_watcher(app_config: &AppConfiguration, frame_source: Box<dyn FrameSource + Send>) -> RookLWResult<Box<dyn MotionWatcher>> {
+    match app_config.motion_watcher_type.as_str() {
+        "radar" => {
+            let watcher = RadarMotionWatcher::new(
+                frame_source,
+                app_config.radar_gpio_chip_path.clone(),
+                app_config.radar_gpio_pin,
+                app_config.motion_watcher_capture_count,
+                Duration::from_millis(app_config.motion_watcher_capture_interval_ms),
+                Duration::from_millis(app_config.motion_watcher_round_interval_ms),
+            );
+            Ok(Box::new(watcher))
+        },
+        _ => {
+            let watcher = ImageDiffMotionWatcher::new(
+                frame_source,
+                Duration::from_millis(app_config.motion_watcher_interval_ms), // motion detect interval
+                app_config.motion_watcher_count,     // motion watch count
+                create_motion_detector(app_config)?,
+                app_config.motion_watcher_capture_count,     // capture count 
+                Duration::from_millis(app_config.motion_watcher_capture_interval_ms), // capture interval
+                Duration::from_millis(app_config.motion_watcher_round_interval_ms),    // round interval
+            );
+            Ok(Box::new(watcher))
+        }
+    }
 }
 
 fn create_frame_source(app_config: &AppConfiguration) -> RookLWResult<Box<dyn FrameSource + Send>> {

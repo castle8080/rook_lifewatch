@@ -1,4 +1,5 @@
 
+pub mod motion_watcher;
 pub mod image_diff_motion_watcher;
 pub mod radar_motion_watcher;
 pub mod image_storer;

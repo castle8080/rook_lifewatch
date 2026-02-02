@@ -4,6 +4,7 @@ use crate::image::frame::{FrameSource, FrameSlot};
 use crate::image::motion::YPlaneMotionDetector;
 use crate::events::{CaptureEvent, ImageProcessingEvent};
 use crate::prodcon::{ProducerTask, ProducerCallbacks};
+use crate::tasks::motion_watcher::MotionWatcher;
 
 use rook_lw_models::image::MotionDetectionScore;
 
@@ -221,4 +222,14 @@ impl ImageDiffMotionWatcher {
         Ok(None)
     }
 
+}
+
+impl MotionWatcher for ImageDiffMotionWatcher {
+    fn connect(&mut self, sender: crossbeam_channel::Sender<ImageProcessingEvent>) {
+        ProducerTask::connect(self, sender);
+    }
+
+    fn start(self: Box<Self>) -> JoinHandle<RookLWResult<()>> {
+        ImageDiffMotionWatcher::start(*self)
+    }
 }

@@ -3,6 +3,7 @@ use crate::image::conversions::frame_to_dynamic_image;
 use crate::image::frame::FrameSource;
 use crate::events::{CaptureEvent, ImageProcessingEvent};
 use crate::prodcon::{ProducerTask, ProducerCallbacks};
+use crate::tasks::motion_watcher::MotionWatcher;
 use crate::error::RookLWError;
 
 use rook_lw_models::image::MotionDetectionScore;
@@ -22,7 +23,16 @@ use gpiod::{Chip, Options, EdgeDetect, Input};
 struct RadarDetectionResult {
     pub event_id: Uuid,
     pub event_timestamp: DateTime<FixedOffset>,
-    pub capture_events: Vec<CaptureEvent>,
+}
+
+impl MotionWatcher for RadarMotionWatcher {
+    fn connect(&mut self, sender: crossbeam_channel::Sender<ImageProcessingEvent>) {
+        ProducerTask::connect(self, sender);
+    }
+
+    fn start(self: Box<Self>) -> JoinHandle<RookLWResult<()>> {
+        RadarMotionWatcher::start(*self)
+    }
 }
 
 pub struct RadarMotionWatcher {
@@ -170,7 +180,6 @@ impl RadarMotionWatcher {
                 let result = RadarDetectionResult {
                     event_id,
                     event_timestamp,
-                    capture_events: Vec::new(),
                 };
 
                 return Ok(Some(result));
