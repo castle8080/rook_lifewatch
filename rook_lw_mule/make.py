@@ -14,10 +14,15 @@ def clean():
 def test():
     subprocess.run(["cargo", "test"], check=True)
 
+def _install_deps():
+    subprocess.run(["cargo", "install", "tauri-cli", "--locked"], check=True)
+    
 def build():
+    _install_deps()
     subprocess.run(["cargo", "tauri", "build"], check=True)
 
 def run():
+    _install_deps()
     subprocess.run([
         "cargo", "tauri", "dev"
     ], check=True)
