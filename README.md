@@ -4,6 +4,12 @@ Hobby project: trail-cam-like software for a Raspberry Pi.
 
 The goal is to capture frames from the Pi camera, detect motion, and (eventually) record/retain the interesting bits in a predictable, debuggable way.
 
+## Dependencies
+
+sudo apt install cmake ninja-build pkg-config libcamera-dev clang llvm lldb lld libclang-dev libopencv-dev 
+
+Rust: https://rust-lang.org/tools/install/
+
 ## Repository layout
 
 - `rook_lw_daemon/` — Main Rust daemon (motion detection / objection detection / local storage / pipeline orchestration).
