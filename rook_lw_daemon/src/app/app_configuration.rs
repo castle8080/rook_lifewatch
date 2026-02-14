@@ -54,11 +54,6 @@ pub struct AppConfiguration {
     pub opencv_model_names_path: String,
     pub opencv_model_confidence_threshold: f32,
 
-    // onnx object detector settings
-    pub onnx_model_path: String,
-    pub onnx_model_names_path: String,
-    pub onnx_model_confidence_threshold: f32,
-
     // yolov8 object detector settings
     pub yolov8_model_path: String,
     pub yolov8_model_names_path: String,
@@ -110,11 +105,6 @@ impl Default for AppConfiguration {
             opencv_model_weights_path: "models/yolov4-tiny.weights".into(),
             opencv_model_names_path: "models/coco.names".into(),
             opencv_model_confidence_threshold: 0.15,
-
-            // onnx object detector defaults
-            onnx_model_path: "models/yolov4-tiny.onnx".into(),
-            onnx_model_names_path: "models/coco.names".into(),
-            onnx_model_confidence_threshold: 0.15,
 
             // yolov8 object detector defaults
             yolov8_model_path: "models/yolov8n.onnx".into(),

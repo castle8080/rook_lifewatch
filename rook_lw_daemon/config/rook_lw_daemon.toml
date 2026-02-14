@@ -39,7 +39,7 @@ yplane_rolling_z_alpha = 0.05
 yplane_rolling_z_threshold = 2.0
 
 # object detector type: "opencv", "onnx", or "yolov8"
-object_detector_type = "opencv"
+object_detector_type = "yolov8"
 
 # opencv object detector (YOLOv4-tiny via OpenCV DNN)
 opencv_model_config_path = "models/yolov4-tiny.cfg"
@@ -47,13 +47,8 @@ opencv_model_weights_path = "models/yolov4-tiny.weights"
 opencv_model_names_path = "models/coco.names"
 opencv_model_confidence_threshold = 0.15
 
-# onnx object detector (YOLOv4-tiny via ONNX Runtime - legacy)
-#onnx_model_path = "models/yolov4-tiny.onnx"
-#onnx_model_names_path = "models/coco.names"
-#onnx_model_confidence_threshold = 0.15
-
 # yolov8 object detector (YOLOv8 Nano via ONNX Runtime - recommended)
 # To use: set object_detector_type = "yolov8" and run download-model-files.py
-#yolov8_model_path = "models/yolov8n.onnx"
-#yolov8_model_names_path = "models/coco.names"
-#yolov8_model_confidence_threshold = 0.25
+yolov8_model_path = "models/yolov8n.onnx"
+yolov8_model_names_path = "models/coco.names"
+yolov8_model_confidence_threshold = 0.15

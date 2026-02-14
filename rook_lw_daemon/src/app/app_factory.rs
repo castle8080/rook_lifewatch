@@ -3,7 +3,6 @@ use crate::tasks::image_capturer::ImageCapturer;
 use crate::{RookLWResult, RookLWError};
 use crate::image::object_detection::ObjectDetector;
 use crate::image::object_detection::OpenCVObjectDetector;
-use crate::image::object_detection::OnnxObjectDetector;
 use crate::image::object_detection::Yolov8ObjectDetector;
 use crate::image::frame::FrameSource;
 use crate::image::frame::FrameSourceFactory;
@@ -213,7 +212,6 @@ fn create_motion_detector(app_config: &AppConfiguration) -> RookLWResult<Box<dyn
 
 fn create_object_detector(app_config: &AppConfiguration) -> RookLWResult<Box<dyn ObjectDetector>> {
     match app_config.object_detector_type.as_str() {
-        "onnx" => Ok(Box::new(create_onnx_object_detector(app_config)?)),
         "opencv" => Ok(Box::new(create_opencv_object_detector(app_config)?)),
         "yolov8" => Ok(Box::new(create_yolov8_object_detector(app_config)?)),
         other => Err(RookLWError::Initialization(format!(
@@ -221,16 +219,6 @@ fn create_object_detector(app_config: &AppConfiguration) -> RookLWResult<Box<dyn
             other
         ))),
     }
-}
-
-fn create_onnx_object_detector(app_config: &AppConfiguration) -> RookLWResult<OnnxObjectDetector> {
-    let object_detector = OnnxObjectDetector::new(
-        app_config.onnx_model_path.as_str(),
-        app_config.onnx_model_names_path.as_str(),
-        app_config.onnx_model_confidence_threshold,  // YOLO confidence threshold
-    )?;
-
-    Ok(object_detector)
 }
 
 fn create_opencv_object_detector(app_config: &AppConfiguration) -> RookLWResult<OpenCVObjectDetector> {
