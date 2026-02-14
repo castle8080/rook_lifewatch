@@ -73,7 +73,7 @@ impl Default for AppConfiguration {
             motion_watcher_type: "image_diff".into(),
             motion_watcher_count: 20,
             motion_watcher_round_interval_ms: 500,
-            radar_gpio_pin: 27,
+            radar_gpio_pin: 17,
             radar_gpio_chip_path: None,
 
             // image capturer defaults
