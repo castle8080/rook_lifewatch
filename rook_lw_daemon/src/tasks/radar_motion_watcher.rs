@@ -1,16 +1,13 @@
 use crate::RookLWResult;
-use crate::image::conversions::frame_to_dynamic_image;
-use crate::image::frame::FrameSource;
-use crate::events::{CaptureEvent, ImageProcessingEvent};
+use crate::events::{ImageProcessingEvent, MotionDetectionEvent};
 use crate::prodcon::{ProducerTask, ProducerCallbacks};
+use crate::tasks::image_capturer::ImageCapturer;
 use crate::tasks::motion_watcher::MotionWatcher;
 use crate::error::RookLWError;
 
 use rook_lw_models::image::MotionDetectionScore;
 
-use std::sync::Arc;
-use std::time::Duration;
-use std::thread::{JoinHandle, sleep, spawn};
+use std::thread::{JoinHandle, spawn};
 use std::collections::HashMap;
 
 use chrono::{DateTime, FixedOffset};
@@ -19,11 +16,6 @@ use tracing::info;
 use uuid::Uuid;
 
 use gpiod::{Chip, Options, EdgeDetect, Input};
-
-struct RadarDetectionResult {
-    pub event_id: Uuid,
-    pub event_timestamp: DateTime<FixedOffset>,
-}
 
 impl MotionWatcher for RadarMotionWatcher {
     fn connect(&mut self, sender: crossbeam_channel::Sender<ImageProcessingEvent>) {
@@ -36,39 +28,28 @@ impl MotionWatcher for RadarMotionWatcher {
 }
 
 pub struct RadarMotionWatcher {
-    frame_source: Box<dyn FrameSource + Send>,
-    producer_callbacks: ProducerCallbacks<ImageProcessingEvent>,
     gpio_chip_path: Option<String>,
     gpio_pin: u32,
-    capture_count: u32,
-    capture_interval: Duration,
-    round_interval: Duration,
+    image_capturer: ImageCapturer,
 }
 
 impl ProducerTask<ImageProcessingEvent> for RadarMotionWatcher {
     fn get_producer_callbacks(&mut self) -> &mut ProducerCallbacks<ImageProcessingEvent> {
-        &mut self.producer_callbacks
+        self.image_capturer.get_producer_callbacks()
     }
 }
 
 impl RadarMotionWatcher {
 
     pub fn new(
-        frame_source: Box<dyn FrameSource + Send>,
         gpio_chip_path: Option<String>,
         gpio_pin: u32,
-        capture_count: u32,
-        capture_interval: Duration,
-        round_interval: Duration,
+        image_capturer: ImageCapturer,
     ) -> Self {
         Self {
-            frame_source,
-            producer_callbacks: ProducerCallbacks::new(),
             gpio_chip_path,
             gpio_pin,
-            capture_count,
-            capture_interval,
-            round_interval,
+            image_capturer,
         }
     }
 
@@ -89,7 +70,6 @@ impl RadarMotionWatcher {
 
     pub fn run(&mut self) -> RookLWResult<()> {
         info!("Starting radar motion watcher");
-        self.frame_source.start()?;
 
         // Initialize GPIO chip and line for radar input
         let chip_path = self.gpio_chip_path.as_deref().unwrap_or("/dev/gpiochip0");
@@ -118,50 +98,17 @@ impl RadarMotionWatcher {
                     // Timeout or no event, continue waiting
                 }
             }
-            sleep(self.round_interval);
         }
 
         // Note: GPIO lines and chip will be closed when dropped
-        // self.frame_source.stop()?;
         // Ok(())
     }
 
-    fn on_image_processing_event(&mut self, event: ImageProcessingEvent) -> RookLWResult<()> {
-        self.produce(event)
+    fn on_radar_detected(&mut self, result: MotionDetectionEvent) -> RookLWResult<()> {
+        self.image_capturer.on_motion_detected(result)
     }
 
-    fn on_radar_detected(&mut self, result: RadarDetectionResult) -> RookLWResult<()> {
-        // Capture images after radar trigger
-        for capture_index in 0..self.capture_count {
-
-            let capture_event: CaptureEvent = {
-                let frame = self.frame_source.next_frame()?;
-                CaptureEvent {
-                    event_id: result.event_id,
-                    event_timestamp: result.event_timestamp,
-                    motion_score: MotionDetectionScore {
-                        detected: true,
-                        score: 1.0,
-                        properties: HashMap::new(),
-                    },
-                    capture_index,
-                    capture_timestamp: chrono::Local::now().into(),
-                    image: Arc::new(frame_to_dynamic_image(&*frame)?),
-                }
-            };
-
-            self.on_image_processing_event(ImageProcessingEvent {
-                capture_event: capture_event.clone(),
-                detections: None,
-            })?;
-
-            sleep(self.capture_interval);
-        }
-
-        Ok(())
-    }
-
-    fn wait_for_radar_trigger(&mut self, lines: &mut gpiod::Lines<Input>) -> RookLWResult<Option<RadarDetectionResult>> {
+    fn wait_for_radar_trigger(&mut self, lines: &mut gpiod::Lines<Input>) -> RookLWResult<Option<MotionDetectionEvent>> {
         // Try to read an event from the GPIO line - this will block until an event occurs
         match lines.read_event() {
             Ok(event) => {
@@ -177,9 +124,15 @@ impl RadarMotionWatcher {
 
                 // Return trigger event without capturing images
                 // Image capture happens later in on_radar_detected()
-                let result = RadarDetectionResult {
+                let result = MotionDetectionEvent {
                     event_id,
                     event_timestamp,
+                    motion_score: MotionDetectionScore {
+                        detected: true,
+                        score: 1.0,
+                        properties: HashMap::new(),
+                    },
+                    capture_events: Vec::new(),
                 };
 
                 return Ok(Some(result));

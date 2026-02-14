@@ -72,7 +72,7 @@ impl OpenCvFrameSource {
 
     /// Get the current source name, if one has been set.
     pub fn source_name(&self) -> Option<String> {
-        self.source_name.borrow().clone()
+        self.source_name.try_borrow().ok()?.clone()
     }
 }
 
@@ -98,8 +98,13 @@ impl Drop for OpenCvFrameSource {
 // but it must not be shared across threads concurrently.
 unsafe impl Send for OpenCvFrameSource {}
 
+// SAFETY: While RefCell is not Sync, we wrap this in Arc to share between components
+// (ImageCapturer and ImageDiffMotionWatcher) that run in the same thread sequentially.
+// The Arc is only used for shared ownership, not concurrent access.
+unsafe impl Sync for OpenCvFrameSource {}
+
 impl FrameSource for OpenCvFrameSource {
-    fn list_sources(&mut self) -> RookLWResult<Vec<String>> {
+    fn list_sources(&self) -> RookLWResult<Vec<String>> {
         // OpenCV does not provide a portable way to enumerate available cameras.
         // This would require platform-specific APIs (e.g., V4L2 on Linux, DirectShow on Windows).
         // For now, we return a stub list with common camera indices.
@@ -111,9 +116,9 @@ impl FrameSource for OpenCvFrameSource {
         ])
     }
 
-    fn set_source(&mut self, source: &str, _required_buffer_count: u32) -> RookLWResult<()> {
+    fn set_source(&self, source: &str, _required_buffer_count: u32) -> RookLWResult<()> {
         // Stop any existing capture
-        if *self.is_started.get_mut() {
+        if *self.is_started.try_borrow().map_err(|e| RookLWError::Camera(format!("Failed to borrow is_started: {}", e)))? {
             self.stop()?;
         }
 
@@ -124,22 +129,22 @@ impl FrameSource for OpenCvFrameSource {
             self.open_video_source(source)?
         };
 
-        *self.source_name.get_mut() = Some(source.to_string());
-        *self.capture.get_mut() = Some(capture);
+        *self.source_name.try_borrow_mut().map_err(|e| RookLWError::Camera(format!("Failed to borrow_mut source_name: {}", e)))? = Some(source.to_string());
+        *self.capture.try_borrow_mut().map_err(|e| RookLWError::Camera(format!("Failed to borrow_mut capture: {}", e)))? = Some(capture);
         Ok(())
     }
 
     fn get_camera_detail(&self) -> RookLWResult<String> {
         // TODO: Implement more detailed camera information retrieval if possible.
-        match self.source_name.borrow().as_ref() {
+        match self.source_name.try_borrow().map_err(|e| RookLWError::Camera(format!("Failed to borrow source_name: {}", e)))?.as_ref() {
             Some(name) => Ok(format!("OpenCV Frame Source: {}", name)),
             None => Err(RookLWError::Camera("No source configured".to_string())),
         }
     }
 
-    fn start(&mut self) -> RookLWResult<()> {
+    fn start(&self) -> RookLWResult<()> {
         // Verify we have a configured capture
-        if self.capture.get_mut().is_none() {
+        if self.capture.try_borrow().map_err(|e| RookLWError::Camera(format!("Failed to borrow capture: {}", e)))?.is_none() {
             return Err(RookLWError::Initialization(
                 "No source configured. Call set_source() first.".to_string(),
             ));
@@ -148,33 +153,33 @@ impl FrameSource for OpenCvFrameSource {
         // OpenCV VideoCapture doesn't have an explicit start/stop mechanism.
         // Capture begins automatically when opened and frames are grabbed on demand.
         // We just track the started state for API consistency.
-        *self.is_started.get_mut() = true;
+        *self.is_started.try_borrow_mut().map_err(|e| RookLWError::Camera(format!("Failed to borrow_mut is_started: {}", e)))? = true;
         Ok(())
     }
 
-    fn stop(&mut self) -> RookLWResult<()> {
-        *self.is_started.get_mut() = false;
+    fn stop(&self) -> RookLWResult<()> {
+        *self.is_started.try_borrow_mut().map_err(|e| RookLWError::Camera(format!("Failed to borrow_mut is_started: {}", e)))? = false;
 
         // Release the capture when stopping
-        if let Some(ref mut capture) = *self.capture.get_mut() {
+        if let Some(ref mut capture) = *self.capture.try_borrow_mut().map_err(|e| RookLWError::Camera(format!("Failed to borrow_mut capture: {}", e)))? {
             capture.release().map_err(|e| {
                 RookLWError::Camera(format!("Failed to release capture: {}", e))
             })?;
         }
-        *self.capture.get_mut() = None;
+        *self.capture.try_borrow_mut().map_err(|e| RookLWError::Camera(format!("Failed to borrow_mut capture: {}", e)))? = None;
 
         Ok(())
     }
 
     fn next_frame(&self) -> RookLWResult<Box<dyn Frame + '_>> {
         // Verify capture is initialized and started
-        if !*self.is_started.borrow() {
+        if !*self.is_started.try_borrow().map_err(|e| RookLWError::Camera(format!("Failed to borrow is_started: {}", e)))? {
             return Err(RookLWError::Camera(
                 "Frame source not started. Call start() first.".to_string(),
             ));
         }
 
-        let mut capture_ref = self.capture.borrow_mut();
+        let mut capture_ref = self.capture.try_borrow_mut().map_err(|e| RookLWError::Camera(format!("Failed to borrow_mut capture: {}", e)))?;
         let capture = capture_ref.as_mut().ok_or_else(|| {
             RookLWError::Camera("OpenCV capture not initialized. Call set_source() first.".to_string())
         })?;
@@ -199,7 +204,7 @@ impl FrameSource for OpenCvFrameSource {
     }
 
     fn get_width(&self) -> RookLWResult<usize> {
-        let capture_ref = self.capture.borrow();
+        let capture_ref = self.capture.try_borrow().map_err(|e| RookLWError::Camera(format!("Failed to borrow capture: {}", e)))?;
         let capture = capture_ref.as_ref().ok_or_else(|| {
             RookLWError::Camera("OpenCV capture not initialized. Call set_source() first.".to_string())
         })?;
@@ -217,7 +222,7 @@ impl FrameSource for OpenCvFrameSource {
     }
 
     fn get_height(&self) -> RookLWResult<usize> {
-        let capture_ref = self.capture.borrow();
+        let capture_ref = self.capture.try_borrow().map_err(|e| RookLWError::Camera(format!("Failed to borrow capture: {}", e)))?;
         let capture = capture_ref.as_ref().ok_or_else(|| {
             RookLWError::Camera("OpenCV capture not initialized. Call set_source() first.".to_string())
         })?;

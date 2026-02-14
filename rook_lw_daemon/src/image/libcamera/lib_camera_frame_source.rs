@@ -1,5 +1,6 @@
 use std::ffi::CStr;
 use std::ptr::NonNull;
+use std::cell::RefCell;
 
 use crate::{RookLWResult, RookLWError};
 use crate::image::frame::{Frame, FrameSource};
@@ -12,7 +13,7 @@ use super::CaptureRequestStatus;
 /// - Construct with `LibCameraFrameSource::new()`
 /// - Automatically destroyed on `Drop`
 pub struct LibCameraFrameSource {
-    inner: NonNull<ffi::rook_lw_camera_capturer_t>,
+    inner: RefCell<NonNull<ffi::rook_lw_camera_capturer_t>>,
 }
 
 // SAFETY: `LibCameraFrameSource` provides exclusive ownership of the underlying
@@ -20,6 +21,11 @@ pub struct LibCameraFrameSource {
 // methods. It is intended to be used from a single thread at a time, but it is
 // safe to *transfer ownership* to another thread.
 unsafe impl Send for LibCameraFrameSource {}
+
+// SAFETY: The underlying C++ implementation handles thread safety with its own locks.
+// RefCell is used only for Rust's borrow checking. The Arc is used for shared ownership
+// between components that access it sequentially, not concurrently.
+unsafe impl Sync for LibCameraFrameSource {}
 
 impl LibCameraFrameSource {
 
@@ -30,13 +36,14 @@ impl LibCameraFrameSource {
                 "rook_lw_camera_capturer_create returned null (failed to initialize)".to_string(),
             )
         })?;
-        Ok(Self { inner })
+        Ok(Self { inner: RefCell::new(inner) })
     }
 
     pub fn camera_count(&self) -> RookLWResult<u32> {
         unsafe {
             let mut count: u32 = 0;
-            if ffi::rook_lw_camera_capturer_get_camera_count(self.inner.as_ptr(), &mut count as *mut u32) != 0 {
+            let inner_ref = self.inner.try_borrow().map_err(|e| RookLWError::Camera(format!("Failed to borrow inner: {}", e)))?;
+            if ffi::rook_lw_camera_capturer_get_camera_count(inner_ref.as_ptr(), &mut count as *mut u32) != 0 {
                 return Err(RookLWError::Camera("Failed to get camera count".to_string()));
             }
             Ok(count)
@@ -49,7 +56,8 @@ impl LibCameraFrameSource {
     pub fn camera_name(&self, index: u32) -> RookLWResult<String> {
         let ptr = unsafe {
             let mut out_camera_name: *const std::os::raw::c_char = std::ptr::null();
-            if ffi::rook_lw_camera_capturer_get_camera_name(self.inner.as_ptr(), index, &mut out_camera_name as *mut *const std::os::raw::c_char) != 0 {
+            let inner_ref = self.inner.try_borrow().map_err(|e| RookLWError::Camera(format!("Failed to borrow inner: {}", e)))?;
+            if ffi::rook_lw_camera_capturer_get_camera_name(inner_ref.as_ptr(), index, &mut out_camera_name as *mut *const std::os::raw::c_char) != 0 {
                 return Err(RookLWError::Camera("Failed to get camera name".to_string()));
             }
             out_camera_name
@@ -60,11 +68,13 @@ impl LibCameraFrameSource {
         Ok(unsafe { CStr::from_ptr(ptr) }.to_string_lossy().into_owned())
     }
 
-    pub fn set_camera_source(&mut self, _source: &str, required_buffer_count: u32) -> RookLWResult<()> {
+    pub fn set_camera_source(&self, _source: &str, required_buffer_count: u32) -> RookLWResult<()> {
+        let c_source = std::ffi::CString::new(_source).map_err(|e| RookLWError::Camera(format!("Invalid source string: {}", e)))?;
         let result = unsafe {
+            let inner_ref = self.inner.try_borrow().map_err(|e| RookLWError::Camera(format!("Failed to borrow inner: {}", e)))?;
             ffi::rook_lw_camera_capturer_set_camera_source(
-                self.inner.as_ptr(), 
-                std::ffi::CString::new(_source).unwrap().as_ptr(),
+                inner_ref.as_ptr(), 
+                c_source.as_ptr(),
                 required_buffer_count)
         };
         if result != 0 {
@@ -76,8 +86,9 @@ impl LibCameraFrameSource {
     pub fn get_width(&self) -> RookLWResult<u32> {
         unsafe {
             let mut width: u32 = 0;
+            let inner_ref = self.inner.try_borrow().map_err(|e| RookLWError::Camera(format!("Failed to borrow inner: {}", e)))?;
             let result = ffi::rook_lw_camera_capturer_get_width(
-                self.inner.as_ptr(),
+                inner_ref.as_ptr(),
                 &mut width as *mut u32,
             );
             if result != 0 {
@@ -90,8 +101,9 @@ impl LibCameraFrameSource {
     pub fn get_height(&self) -> RookLWResult<u32> {
         unsafe {
             let mut height: u32 = 0;
+            let inner_ref = self.inner.try_borrow().map_err(|e| RookLWError::Camera(format!("Failed to borrow inner: {}", e)))?;
             let result = ffi::rook_lw_camera_capturer_get_height(
-                self.inner.as_ptr(),
+                inner_ref.as_ptr(),
                 &mut height as *mut u32,
             );
             if result != 0 {
@@ -104,8 +116,9 @@ impl LibCameraFrameSource {
     pub fn get_stride(&self) -> RookLWResult<u32> {
         unsafe {
             let mut stride: u32 = 0;
+            let inner_ref = self.inner.try_borrow().map_err(|e| RookLWError::Camera(format!("Failed to borrow inner: {}", e)))?;
             let result = ffi::rook_lw_camera_capturer_get_stride(
-                self.inner.as_ptr(),
+                inner_ref.as_ptr(),
                 &mut stride as *mut u32,
             );
             if result != 0 {
@@ -119,16 +132,20 @@ impl LibCameraFrameSource {
 impl Drop for LibCameraFrameSource {
     fn drop(&mut self) {
         unsafe {
-            ffi::rook_lw_camera_capturer_destroy(self.inner.as_ptr())
+            // In drop, we can use get_mut since we have &mut self
+            if let Ok(inner) = self.inner.try_borrow() {
+                ffi::rook_lw_camera_capturer_destroy(inner.as_ptr())
+            }
         };
     }
 }
 
 impl FrameSource for LibCameraFrameSource {
 
-    fn start(&mut self) -> RookLWResult<()> {
+    fn start(&self) -> RookLWResult<()> {
         unsafe {
-            let result = ffi::rook_lw_camera_capturer_start(self.inner.as_ptr());
+            let inner_ref = self.inner.try_borrow().map_err(|e| RookLWError::Camera(format!("Failed to borrow inner: {}", e)))?;
+            let result = ffi::rook_lw_camera_capturer_start(inner_ref.as_ptr());
             if result != 0 {
                 return Err(RookLWError::Camera("Failed to start camera capturer".to_string()));
             }
@@ -136,9 +153,10 @@ impl FrameSource for LibCameraFrameSource {
         }
     }
 
-    fn stop(&mut self) -> RookLWResult<()> {
+    fn stop(&self) -> RookLWResult<()> {
         unsafe {
-            let result = ffi::rook_lw_camera_capturer_stop(self.inner.as_ptr());
+            let inner_ref = self.inner.try_borrow().map_err(|e| RookLWError::Camera(format!("Failed to borrow inner: {}", e)))?;
+            let result = ffi::rook_lw_camera_capturer_stop(inner_ref.as_ptr());
             if result != 0 {
                 return Err(RookLWError::Camera("Failed to stop camera capturer".to_string()));
             }
@@ -146,7 +164,7 @@ impl FrameSource for LibCameraFrameSource {
         }
     }
 
-    fn list_sources(&mut self) -> RookLWResult<Vec<String>> {
+    fn list_sources(&self) -> RookLWResult<Vec<String>> {
         let mut sources = Vec::new();
         for i in 0..self.camera_count()? {
             let cam = self.camera_name(i)?;
@@ -155,15 +173,16 @@ impl FrameSource for LibCameraFrameSource {
         Ok(sources)
     }
 
-    fn set_source(&mut self, source: &str, required_buffer_count: u32) -> RookLWResult<()> {
+    fn set_source(&self, source: &str, required_buffer_count: u32) -> RookLWResult<()> {
         self.set_camera_source(source, required_buffer_count)
     }
 
     fn get_camera_detail(&self) -> RookLWResult<String> {
         unsafe {
             let mut out_camera_detail: *const std::os::raw::c_char = std::ptr::null();
+            let inner_ref = self.inner.try_borrow().map_err(|e| RookLWError::Camera(format!("Failed to borrow inner: {}", e)))?;
             let result = ffi::rook_lw_camera_capturer_get_camera_detail(
-                self.inner.as_ptr(),
+                inner_ref.as_ptr(),
                 &mut out_camera_detail as *mut *const std::os::raw::c_char,
             );
             if result != 0 {
@@ -183,7 +202,8 @@ impl FrameSource for LibCameraFrameSource {
 
     fn next_frame(&self) -> RookLWResult<Box<dyn Frame + '_>> {
         unsafe {
-            let result = ffi::rook_lw_camera_capturer_acquire_frame(self.inner.as_ptr());
+            let inner_ref = self.inner.try_borrow().map_err(|e| RookLWError::Camera(format!("Failed to borrow inner: {}", e)))?;
+            let result = ffi::rook_lw_camera_capturer_acquire_frame(inner_ref.as_ptr());
             if result.is_null() {
                 return Err(RookLWError::Camera("Failed to acquire frame".to_string()));
             }
@@ -212,8 +232,9 @@ impl FrameSource for LibCameraFrameSource {
     fn get_pixel_format(&self) -> RookLWResult<u32> {
         unsafe {
             let mut pixel_format: u32 = 0;
+            let inner_ref = self.inner.try_borrow().map_err(|e| RookLWError::Camera(format!("Failed to borrow inner: {}", e)))?;
             let result = ffi::rook_lw_camera_capturer_get_pixel_format(
-                self.inner.as_ptr(),
+                inner_ref.as_ptr(),
                 &mut pixel_format as *mut u32,
             );
             if result != 0 {

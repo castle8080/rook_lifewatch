@@ -4,9 +4,10 @@ use crate::image::frame::{FrameSource, FrameSlot};
 use crate::image::motion::YPlaneMotionDetector;
 use crate::events::{CaptureEvent, ImageProcessingEvent};
 use crate::prodcon::{ProducerTask, ProducerCallbacks};
+use crate::tasks::image_capturer::ImageCapturer;
 use crate::tasks::motion_watcher::MotionWatcher;
 
-use rook_lw_models::image::MotionDetectionScore;
+use crate::events::MotionDetectionEvent;
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -18,49 +19,37 @@ use tracing::{info, debug};
 
 use uuid::Uuid;
 
-struct MotionDetectionResult {
-    pub event_id: Uuid,
-    pub event_timestamp: DateTime<FixedOffset>,
-    pub motion_score: MotionDetectionScore,
-    pub capture_events: Vec<CaptureEvent>,
-}
-
 pub struct ImageDiffMotionWatcher {
-    frame_source: Box<dyn FrameSource + Send>,
-    producer_callbacks: ProducerCallbacks<ImageProcessingEvent>,
+    frame_source: Arc<Box<dyn FrameSource + Send + Sync>>,
     motion_detect_interval: Duration,
     motion_watch_count: u32,
     motion_detector: Box<dyn YPlaneMotionDetector>,
-    capture_count: u32,
-    capture_interval: Duration,
+    image_capturer: ImageCapturer,
     round_interval: Duration,
 }
 
 impl ProducerTask<ImageProcessingEvent> for ImageDiffMotionWatcher {
     fn get_producer_callbacks(&mut self) -> &mut ProducerCallbacks<ImageProcessingEvent> {
-        &mut self.producer_callbacks
+        self.image_capturer.get_producer_callbacks()
     }
 }
 
 impl ImageDiffMotionWatcher {
 
     pub fn new(
-        frame_source: Box<dyn FrameSource + Send>,
+        frame_source: Arc<Box<dyn FrameSource + Send + Sync>>,
         motion_detect_interval: Duration,
         motion_watch_count: u32,
         motion_detector: Box<dyn YPlaneMotionDetector>,
-        capture_count: u32,
-        capture_interval: Duration,
+        image_capturer: ImageCapturer,
         round_interval: Duration,
     ) -> Self {
         Self { 
             frame_source,
-            producer_callbacks: ProducerCallbacks::new(),
             motion_detect_interval,
             motion_watch_count,
             motion_detector,
-            capture_count,
-            capture_interval,
+            image_capturer,
             round_interval,
         }
     }
@@ -92,10 +81,6 @@ impl ImageDiffMotionWatcher {
         // Ok(())
     }
 
-    fn on_image_processing_event(&mut self, event: ImageProcessingEvent) -> RookLWResult<()> {
-        self.produce(event)
-    }
-
     fn run_round(&mut self) -> RookLWResult<()> {
         match self.detect_motion()? {
             Some(motion_detection_result) => {
@@ -108,43 +93,11 @@ impl ImageDiffMotionWatcher {
         Ok(())
     }
 
-    fn on_motion_detected(&mut self, result: MotionDetectionResult) -> RookLWResult<()> {
-        let index_offset = result.capture_events.len() as u32;
-
-        // Emit initial capture events
-        for capture_event in result.capture_events {
-            self.on_image_processing_event(ImageProcessingEvent {
-                capture_event: capture_event.clone(),
-                detections: None,
-            })?;
-        }
-
-        for capture_index in 0..(self.capture_count-index_offset) {
-
-            let capture_event: CaptureEvent = {
-                let frame = self.frame_source.next_frame()?;
-                CaptureEvent {
-                    event_id: result.event_id,
-                    event_timestamp: result.event_timestamp,
-                    motion_score: result.motion_score.clone(),
-                    capture_index: capture_index + index_offset, // offset because first images were from motion detection
-                    capture_timestamp: chrono::Local::now().into(),
-                    image: Arc::new(frame_to_dynamic_image(&*frame)?),
-                }
-            };
-
-            self.on_image_processing_event(ImageProcessingEvent {
-                capture_event: capture_event.clone(),
-                detections: None,
-            })?;
-
-            sleep(self.capture_interval);
-        }
-
-        Ok(())
+    fn on_motion_detected(&mut self, result: MotionDetectionEvent) -> RookLWResult<()> {
+        self.image_capturer.on_motion_detected(result)
     }
 
-    fn detect_motion(&mut self) -> RookLWResult<Option<MotionDetectionResult>> {
+    fn detect_motion(&mut self) -> RookLWResult<Option<MotionDetectionEvent>> {
         // Keep a small 2-slot ring. Each slot owns its frame and caches a YPlane.
         // YU12: YPlane is a borrowed view (no copy). MJPG: YPlane owns decoded luma.
         let mut last = FrameSlot::from_frame(self.frame_source.next_frame()?)?;
@@ -175,7 +128,7 @@ impl ImageDiffMotionWatcher {
                     "Motion detected."
                 );
 
-                let mut result = MotionDetectionResult {
+                let mut result = MotionDetectionEvent {
                     event_id,
                     event_timestamp: current_timestamp,
                     motion_score: motion_score.clone(),
