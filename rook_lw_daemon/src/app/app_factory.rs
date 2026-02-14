@@ -4,6 +4,7 @@ use crate::{RookLWResult, RookLWError};
 use crate::image::object_detection::ObjectDetector;
 use crate::image::object_detection::OpenCVObjectDetector;
 use crate::image::object_detection::OnnxObjectDetector;
+use crate::image::object_detection::Yolov8ObjectDetector;
 use crate::image::frame::FrameSource;
 use crate::image::frame::FrameSourceFactory;
 
@@ -214,6 +215,7 @@ fn create_object_detector(app_config: &AppConfiguration) -> RookLWResult<Box<dyn
     match app_config.object_detector_type.as_str() {
         "onnx" => Ok(Box::new(create_onnx_object_detector(app_config)?)),
         "opencv" => Ok(Box::new(create_opencv_object_detector(app_config)?)),
+        "yolov8" => Ok(Box::new(create_yolov8_object_detector(app_config)?)),
         other => Err(RookLWError::Initialization(format!(
             "Unknown object detector type: {}",
             other
@@ -237,6 +239,16 @@ fn create_opencv_object_detector(app_config: &AppConfiguration) -> RookLWResult<
         app_config.opencv_model_weights_path.as_str(),
         app_config.opencv_model_names_path.as_str(),
         app_config.opencv_model_confidence_threshold  // YOLO confidence threshold
+    )?;
+
+    Ok(object_detector)
+}
+
+fn create_yolov8_object_detector(app_config: &AppConfiguration) -> RookLWResult<Yolov8ObjectDetector> {
+    let object_detector = Yolov8ObjectDetector::new(
+        app_config.yolov8_model_path.as_str(),
+        app_config.yolov8_model_names_path.as_str(),
+        app_config.yolov8_model_confidence_threshold,
     )?;
 
     Ok(object_detector)

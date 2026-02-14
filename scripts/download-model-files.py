@@ -7,9 +7,15 @@ download_dir = os.path.join("var", "downloads")
 model_dir = os.path.join("dist", "models")
 
 model_files = [
+    # YOLOv8 Nano ONNX (recommended - better accuracy, easier integration)
+    "https://huggingface.co/SpotLab/YOLOv8Detection/resolve/3005c6751fb19cdeb6b10c066185908faf66a097/yolov8n.onnx?download=true",
+    
+    # YOLOv4-tiny files (legacy)
     "https://huggingface.co/Kalray/yolov4-tiny/resolve/d4625044dd555c909ad2ee396efa0d85b2ece68a/yolov4-tiny.onnx?download=true",
     "https://github.com/AlexeyAB/darknet/releases/download/yolov4/yolov4-tiny.weights",
     "https://raw.githubusercontent.com/AlexeyAB/darknet/master/cfg/yolov4-tiny.cfg",
+    
+    # COCO class names (shared by both models)
     "https://raw.githubusercontent.com/pjreddie/darknet/master/data/coco.names"
 ]
 
