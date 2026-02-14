@@ -4,15 +4,15 @@ use super::Frame;
 
 pub trait FrameSource {
 
-    fn list_sources(&mut self) -> RookLWResult<Vec<String>>;
+    fn list_sources(&self) -> RookLWResult<Vec<String>>;
 
-    fn set_source(&mut self, source: &str, required_buffer_count: u32) -> RookLWResult<()>;
+    fn set_source(&self, source: &str, required_buffer_count: u32) -> RookLWResult<()>;
 
     fn get_camera_detail(&self) -> RookLWResult<String>;
 
-    fn start(&mut self) -> RookLWResult<()>;
+    fn start(&self) -> RookLWResult<()>;
     
-    fn stop(&mut self) -> RookLWResult<()>;
+    fn stop(&self) -> RookLWResult<()>;
 
     /// Returns the next frame.
     ///

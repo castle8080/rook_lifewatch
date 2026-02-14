@@ -6,7 +6,7 @@ pub struct FrameSourceFactory;
 impl FrameSourceFactory {
 
     /// Create a frame source using the default preference order
-    pub fn create() -> RookLWResult<Box<dyn FrameSource + Send>> {
+    pub fn create() -> RookLWResult<Box<dyn FrameSource + Send + Sync>> {
         let sources = Self::available_sources();
         let source_name = sources
             .first()
@@ -16,7 +16,7 @@ impl FrameSourceFactory {
     }
 
     /// Try to create a specific frame source by name
-    pub fn try_create(source_name: &str) -> RookLWResult<Box<dyn FrameSource + Send>> {
+    pub fn try_create(source_name: &str) -> RookLWResult<Box<dyn FrameSource + Send + Sync>> {
         match source_name {
             "libcamera" => {
                 try_create_libcamera_source()
@@ -42,7 +42,7 @@ impl FrameSourceFactory {
     }
 }
 
-fn try_create_libcamera_source() -> RookLWResult<Box<dyn FrameSource + Send>> {
+fn try_create_libcamera_source() -> RookLWResult<Box<dyn FrameSource + Send + Sync>> {
     #[cfg(feature = "libcamera")]
     {
         use crate::image::libcamera::LibCameraFrameSource;
@@ -56,7 +56,7 @@ fn try_create_libcamera_source() -> RookLWResult<Box<dyn FrameSource + Send>> {
     }
 }
 
-fn try_create_opencv_source() -> RookLWResult<Box<dyn FrameSource + Send>> {
+fn try_create_opencv_source() -> RookLWResult<Box<dyn FrameSource + Send + Sync>> {
     #[cfg(feature = "opencv")]
     {
         use crate::image::opencv::OpenCvFrameSource;

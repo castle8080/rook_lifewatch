@@ -18,11 +18,15 @@ pub struct AppConfiguration {
 
     // Motion watcher settings
     pub use_motion_watcher: bool,
+    pub motion_watcher_type: String,
     pub motion_watcher_count: u32,
-    pub motion_watcher_capture_count: u32,
-    pub motion_watcher_interval_ms: u64,
-    pub motion_watcher_capture_interval_ms: u64,
     pub motion_watcher_round_interval_ms: u64,
+    pub radar_gpio_pin: u32,
+    pub radar_gpio_chip_path: Option<String>,
+
+    // Image capturer settings
+    pub image_capturer_capture_count: u32,
+    pub image_capturer_capture_interval_ms: u64,
 
     // motion detector settings
     pub motion_detector_type: String,
@@ -66,11 +70,15 @@ impl Default for AppConfiguration {
 
             // motion watcher defaults
             use_motion_watcher: true,
+            motion_watcher_type: "image_diff".into(),
             motion_watcher_count: 20,
-            motion_watcher_capture_count: 5,
-            motion_watcher_interval_ms: 100,
-            motion_watcher_capture_interval_ms: 200,
             motion_watcher_round_interval_ms: 500,
+            radar_gpio_pin: 17,
+            radar_gpio_chip_path: None,
+
+            // image capturer defaults
+            image_capturer_capture_count: 5,
+            image_capturer_capture_interval_ms: 100,
 
             // Which motion detector to use.
             motion_detector_type: "yplane_motion_percentile".into(),

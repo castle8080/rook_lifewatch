@@ -6,11 +6,20 @@ database_path = "var/db/image_info.db"
 
 # motion watcher settings
 use_motion_watcher = true
+
+# Use image diff monitoring or radar.
+motion_watcher_type = "image_diff"
+#motion_watcher_type = "radar"
+
 motion_watcher_count = 50
-motion_watcher_capture_count = 5
-motion_watcher_interval_ms = 100
-motion_watcher_captuer_interval_ms = 100
 motion_watcher_round_interval_ms = 100
+
+# Image capturer settings (captures images after motion detected)
+image_capturer_capture_count = 5
+image_capturer_capture_interval_ms = 100
+
+radar_gpio_pin = 17
+# radar_gpio_chip_path = "/dev/gpiochip0"
 
 # pick motion detector type / algorithm (yplane_motion_percentile, yplane_boxed_average)
 motion_detector_type = "yplane_boxed_average"

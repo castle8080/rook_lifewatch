@@ -1,12 +1,17 @@
 use crate::app::{App, AppConfiguration};
+use crate::tasks::image_capturer::ImageCapturer;
 use crate::{RookLWResult, RookLWError};
 use crate::image::object_detection::ObjectDetector;
 use crate::image::object_detection::OpenCVObjectDetector;
 use crate::image::object_detection::OnnxObjectDetector;
 use crate::image::frame::FrameSource;
 use crate::image::frame::FrameSourceFactory;
+
+use std::sync::Arc;
 use crate::image::fourcc::fourcc_to_string;
 use crate::image::motion::{YPlaneMotionDetector, YPlaneRollingZMotionDetector, YPlaneBoxedAverageMotionDetector, YPlaneMotionPercentileDetector};
+use crate::tasks::image_diff_motion_watcher::ImageDiffMotionWatcher;
+use crate::tasks::radar_motion_watcher::RadarMotionWatcher;
 use crate::tasks::motion_watcher::MotionWatcher;
 use crate::tasks::image_storer::ImageStorer;
 use crate::tasks::image_detector::ImageDetector;
@@ -83,24 +88,46 @@ fn create_image_detector(app_config: &AppConfiguration) -> RookLWResult<ImageDet
     ))
 }
 
-fn create_motion_watcher(app_config: &AppConfiguration, frame_source: Box<dyn FrameSource + Send>) -> RookLWResult<MotionWatcher> {
-    Ok(MotionWatcher::new(
+fn creat_image_capturer(app_config: &AppConfiguration, frame_source: Arc<Box<dyn FrameSource + Send + Sync>>) -> ImageCapturer {
+    ImageCapturer::new(
         frame_source,
-        Duration::from_millis(app_config.motion_watcher_interval_ms), // motion detect interval
-        app_config.motion_watcher_count,     // motion watch count
-        create_motion_detector(app_config)?,
-        app_config.motion_watcher_capture_count,     // capture count 
-        Duration::from_millis(app_config.motion_watcher_capture_interval_ms), // capture interval
-        Duration::from_millis(app_config.motion_watcher_round_interval_ms),    // round interval
-    ))
+        app_config.image_capturer_capture_count,
+        Duration::from_millis(app_config.image_capturer_capture_interval_ms),
+    )
 }
 
-fn create_frame_source(app_config: &AppConfiguration) -> RookLWResult<Box<dyn FrameSource + Send>> {
+fn create_motion_watcher(app_config: &AppConfiguration, frame_source: Arc<Box<dyn FrameSource + Send + Sync>>) -> RookLWResult<Box<dyn MotionWatcher>> {
+    let image_capturer = creat_image_capturer(app_config, frame_source.clone());
+    
+    match app_config.motion_watcher_type.as_str() {
+        "radar" => {
+            let watcher = RadarMotionWatcher::new(
+                app_config.radar_gpio_chip_path.clone(),
+                app_config.radar_gpio_pin,
+                image_capturer,
+            );
+            Ok(Box::new(watcher))
+        },
+        _ => {
+            let watcher = ImageDiffMotionWatcher::new(
+                frame_source.clone(),
+                Duration::from_millis(app_config.motion_watcher_round_interval_ms), // motion detect interval
+                app_config.motion_watcher_count,     // motion watch count
+                create_motion_detector(app_config)?,
+                image_capturer,
+                Duration::from_millis(app_config.motion_watcher_round_interval_ms),    // round interval
+            );
+            Ok(Box::new(watcher))
+        }
+    }
+}
+
+fn create_frame_source(app_config: &AppConfiguration) -> RookLWResult<Arc<Box<dyn FrameSource + Send + Sync>>> {
    // Print available frame sources at compile time
     info!(available_sources = ?FrameSourceFactory::available_sources(), "Available frame sources");
 
     // Create frame source based on configuration
-    let mut frame_source = match &app_config.frame_source {
+    let frame_source = match &app_config.frame_source {
         Some(frame_source_name) => {
             info!(source_name = %frame_source_name, "Creating specified frame source");
             FrameSourceFactory::try_create(frame_source_name)?
@@ -138,7 +165,7 @@ fn create_frame_source(app_config: &AppConfiguration) -> RookLWResult<Box<dyn Fr
         frame_source.get_camera_detail().unwrap_or_else(|e| e.to_string())
     );
 
-    Ok(frame_source)
+    Ok(Arc::new(frame_source))
 }
 
 fn create_motion_detector(app_config: &AppConfiguration) -> RookLWResult<Box<dyn YPlaneMotionDetector>> {
