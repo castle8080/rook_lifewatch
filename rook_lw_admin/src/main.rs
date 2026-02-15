@@ -1,5 +1,5 @@
 use actix_files::{self as fs};
-use actix_web::{App, HttpServer, middleware::{Logger, Compress}, web};
+use actix_web::{App, HttpServer, middleware::{Logger, Compress, from_fn}, web};
 use std::fs::File;
 use std::io::BufReader;
 use rustls::{Certificate, PrivateKey};
@@ -12,6 +12,7 @@ use tracing::info;
 use rook_lw_admin::RookLWAdminResult;
 use rook_lw_admin::controllers;
 use rook_lw_admin::app;
+use rook_lw_admin::middleware::{signature_validation, SignatureValidationConfig};
 
 /// Command line options
 #[derive(Parser, Debug)]
@@ -76,11 +77,18 @@ async fn run() -> RookLWAdminResult<()> {
         &cli.app_dir,
     )?;
 
+    // Configure signature validation for /api/* paths
+    let sig_config = SignatureValidationConfig::new(vec!["/api/*".to_string()]);
+
     let server = HttpServer::new(move || {
+        let cfg = sig_config.clone();
         App::new()
             .app_data(web::Data::new(app_state.clone()))
             .wrap(Logger::default())
             .wrap(Compress::default())
+            .wrap(from_fn(move |req, next| {
+                signature_validation(cfg.clone(), req, next)
+            }))
             .service(
                 fs::Files::new("/var", &var_dir)
                     .index_file("index.html")
