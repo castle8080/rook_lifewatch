@@ -25,6 +25,9 @@ pub enum RookLWAdminError {
     #[error("Invalid input")]
     Input(String),
 
+    #[error("Authentication error: {0}")]
+    Authentication(String),
+
     #[error("Error: {0}")]
     Other(String)
 }
@@ -61,6 +64,7 @@ impl ResponseError for RookLWAdminError {
             RookLWAdminError::Io(_) => StatusCode::INTERNAL_SERVER_ERROR,
             RookLWAdminError::Other(_) => StatusCode::INTERNAL_SERVER_ERROR,
             RookLWAdminError::Input(_) => StatusCode::BAD_REQUEST,
+            RookLWAdminError::Authentication(_) => StatusCode::UNAUTHORIZED,
         }
     }
 
