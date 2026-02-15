@@ -2,7 +2,7 @@
 use serde::{Deserialize, Serialize};
 
 use super::MotionDetectionScore;
-use super::Detection;
+use super::DetectionResult;
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Default)]
 pub struct ImageInfo {
@@ -12,6 +12,6 @@ pub struct ImageInfo {
     pub motion_score: MotionDetectionScore,
     pub capture_index: u32,
     pub capture_timestamp: chrono::DateTime<chrono::FixedOffset>,
-    pub detections: Option<Vec<Detection>>,
+    pub detection: Option<DetectionResult>,
     pub image_path: String,
 }

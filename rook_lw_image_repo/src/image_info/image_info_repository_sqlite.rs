@@ -1,7 +1,11 @@
 use super::ImageInfoRepository;
 use crate::ImageRepoResult;
 
-use rook_lw_models::image::{Detection, MotionDetectionScore, ImageInfo, ImageInfoSearchOptions};
+use rook_lw_models::image::{
+    DetectionResult,
+    MotionDetectionScore,
+    ImageInfo,
+    ImageInfoSearchOptions};
 
 use rusqlite::Row;
 use tracing::{debug, info};
@@ -27,13 +31,19 @@ impl ImageInfoRepositorySqlite {
         let event_id: String = row.get(1)?;
         let event_timestamp: String = row.get(2)?;
         let motion_score_json: String = row.get(3)?;
-        let detections_json: String = row.get(4)?;
+        let detection_json: String = row.get(4)?;
         let capture_index: u32 = row.get(5)?;
         let capture_timestamp: String = row.get(6)?;
         let image_path: String = row.get(7)?;
 
         let motion_score: MotionDetectionScore = serde_json::from_str(&motion_score_json)?;
-        let detections: Option<Vec<Detection>> = serde_json::from_str(&detections_json)?;
+        
+        let detection: Option<DetectionResult> = if detection_json.is_empty() {
+            None
+        } else {
+            serde_json::from_str(&detection_json)?
+        };
+        
         let event_timestamp = chrono::DateTime::parse_from_rfc3339(&event_timestamp)?;
         let capture_timestamp = chrono::DateTime::parse_from_rfc3339(&capture_timestamp)?;
 
@@ -44,7 +54,7 @@ impl ImageInfoRepositorySqlite {
             motion_score,
             capture_index,
             capture_timestamp,
-            detections,
+            detection,
             image_path,
         })
     }
@@ -58,7 +68,7 @@ impl ImageInfoRepositorySqlite {
                 event_id TEXT NOT NULL,
                 event_timestamp TEXT NOT NULL,
                 motion_score TEXT NOT NULL,
-                detections TEXT NOT NULL,
+                detection TEXT NOT NULL,
                 capture_index INTEGER NOT NULL,
                 capture_timestamp TEXT NOT NULL,
                 image_path TEXT NOT NULL
@@ -71,17 +81,17 @@ impl ImageInfoRepositorySqlite {
 
     fn save_image_info(&self, info: &ImageInfo) -> ImageRepoResult<()> {
         let motion_score_json = serde_json::to_string(&info.motion_score)?;
-        let detections_json = serde_json::to_string(&info.detections)?;
+        let detection_json = serde_json::to_string(&info.detection)?;
         let conn = self.pool.get()?;
         conn.execute(
             r#"INSERT INTO image_info (
-                image_id, event_id, event_timestamp, motion_score, detections, capture_index, capture_timestamp, image_path
+                image_id, event_id, event_timestamp, motion_score, detection, capture_index, capture_timestamp, image_path
             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
             ON CONFLICT(image_id) DO UPDATE SET
                 event_id=excluded.event_id,
                 event_timestamp=excluded.event_timestamp,
                 motion_score=excluded.motion_score,
-                detections=excluded.detections,
+                detection=excluded.detection,
                 capture_index=excluded.capture_index,
                 capture_timestamp=excluded.capture_timestamp,
                 image_path=excluded.image_path
@@ -91,7 +101,7 @@ impl ImageInfoRepositorySqlite {
                 &info.event_id,
                 info.event_timestamp.to_rfc3339(),
                 motion_score_json,
-                detections_json,
+                detection_json,
                 info.capture_index,
                 info.capture_timestamp.to_rfc3339(),
                 &info.image_path,
@@ -103,7 +113,7 @@ impl ImageInfoRepositorySqlite {
     fn get_image_info(&self, image_id: &str) -> ImageRepoResult<Option<ImageInfo>> {
         let conn = self.pool.get()?;
         let mut stmt = conn.prepare(
-            r#"SELECT image_id, event_id, event_timestamp, motion_score, detections, capture_index, capture_timestamp, image_path
+            r#"SELECT image_id, event_id, event_timestamp, motion_score, detection, capture_index, capture_timestamp, image_path
                FROM image_info WHERE image_id = ?1"#
         )?;
         let mut rows = stmt.query(params![image_id])?;
@@ -127,7 +137,7 @@ impl ImageInfoRepositorySqlite {
         let mut query = String::new();
         query.push_str("SELECT\n");
         query.push_str("  image_id, event_id, event_timestamp, motion_score,\n");
-        query.push_str("  detections, capture_index, capture_timestamp, image_path\n");
+        query.push_str("  detection, capture_index, capture_timestamp, image_path\n");
         query.push_str("FROM image_info AS ii_outer\n");
         query.push_str("WHERE 1=1\n");
 
@@ -149,7 +159,7 @@ impl ImageInfoRepositorySqlite {
         // Critera on detections
         query.push_str("  AND EXISTS (\n");
         query.push_str("    SELECT image_id\n");
-        query.push_str("    FROM image_info AS ii_inner, json_each(ii_inner.detections) as detection\n");
+        query.push_str("    FROM image_info AS ii_inner, json_each(ii_inner.detection) as detection\n");
         query.push_str("    WHERE ii_outer.image_id = ii_inner.image_id\n");
 
         // Build up detection class name criteria

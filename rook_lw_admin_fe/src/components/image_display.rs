@@ -15,16 +15,19 @@ pub fn ImageDetections(image_info: ImageInfo) -> impl IntoView {
                 <th>"Class"</th>
                 <th>"Confidence"</th>
             </tr>
-            {
-                image_info.detections.iter().flatten().map (|d| {
-                    view! {
-                        <tr>
-                            <td>{ d.class_name.clone() }</td>
-                            <td>{ d.confidence }</td>
-                        </tr>
-                    }
-                }).collect_view()
-            }
+            { match image_info.detection {
+                None => view! {}.into_any(),
+                Some(ref detection) => {
+                    detection.detections.iter().map (|d| {
+                        view! {
+                            <tr>
+                                <td>{ d.class_name.clone() }</td>
+                                <td>{ d.confidence }</td>
+                            </tr>
+                        }
+                    }).collect_view().into_any()
+                }
+            } }
         </table>
     }
 }

@@ -142,8 +142,6 @@ impl Yolov8ObjectDetector {
         let (output_shape, output_data) = output_tuple;
         let shape_vec = output_shape.as_ref().to_vec();
         let data_vec = output_data.to_vec();
-        
-        tracing::info!(outputs_len = outputs.len(), "Outputs from tensor");
 
         // Extract embeddings if available
         let embeddings = if outputs.len() >= 2 {

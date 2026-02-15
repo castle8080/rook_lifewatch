@@ -94,7 +94,7 @@ impl ImageStorer {
             motion_score: capture_event.motion_score.clone(),
             capture_index: capture_event.capture_index,
             capture_timestamp: capture_event.capture_timestamp,
-            detections: image_processing_event.detection_result.as_ref().map(|r| r.detections.clone()),
+            detection: image_processing_event.detection_result.clone(),
             image_path: image_path_rel.to_string(),
         };
 
