@@ -11,6 +11,7 @@ project_dirs = [
     "rook_lw_daemon",
     "rook_lw_admin",
     "rook_lw_admin_fe",
+    "rook_lw_models"
 ]
 
 # We don't support libcamera on windows.

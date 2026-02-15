@@ -8,7 +8,7 @@
 
 use crate::RookLWResult;
 use crate::image::object_detection::ObjectDetector;
-use rook_lw_models::image::Detection;
+use rook_lw_models::image::{Detection, DetectionResult};
 
 use anyhow::{Context, Result};
 use std::path::Path;
@@ -26,6 +26,8 @@ use image::GenericImageView;
 ///
 /// YOLOv8 expects input shape [1, 3, 640, 640] and outputs [1, 84, 8400]
 /// where 84 = 4 bbox coordinates (x_center, y_center, width, height) + 80 class scores.
+///
+/// Optionally supports dual-output models with embeddings for similarity search.
 pub struct Yolov8ObjectDetector {
     session: Session,
     class_names: Vec<String>,
@@ -111,11 +113,11 @@ impl Yolov8ObjectDetector {
     ///
     /// # Returns
     ///
-    /// Vector of detected objects with bounding boxes and confidence scores.
+    /// DetectionResult with detected objects and optional embeddings.
     pub fn detect(
         &mut self,
         image: &image::DynamicImage,
-    ) -> RookLWResult<Vec<Detection>> {
+    ) -> RookLWResult<DetectionResult> {
         let (orig_width, orig_height) = image.dimensions();
         
         // Preprocess directly from DynamicImage
@@ -132,14 +134,26 @@ impl Yolov8ObjectDetector {
             .run(ort::inputs![&input_value])
             .context("Failed to run ONNX inference")?;
 
+        // Extract detections output
         let output_tuple = outputs[0].try_extract_tensor::<f32>()
             .context("Failed to extract output tensor")?;
         let (output_shape, output_data) = output_tuple;
         let shape_vec = output_shape.as_ref().to_vec();
         let data_vec = output_data.to_vec();
+        
+        // Extract embeddings if available
+        let embeddings = if outputs.len() >= 2 {
+            let emb_tuple = outputs[1].try_extract_tensor::<f32>()
+                .context("Failed to extract embeddings tensor")?;
+            let (_, emb_data) = emb_tuple;
+            Some(emb_data.to_vec())
+        } else {
+            None
+        };
+        
         drop(outputs);
 
-        self.post_process(&shape_vec, &data_vec, orig_width as i32, orig_height as i32)
+        self.post_process(&shape_vec, &data_vec, embeddings, orig_width as i32, orig_height as i32)
     }
 
     /// Preprocess image for YOLOv8 inference.
@@ -187,13 +201,16 @@ impl Yolov8ObjectDetector {
     /// YOLOv8 output shape: [batch, 84, 8400]
     /// - First 4 values per detection: x_center, y_center, width, height (normalized to input size)
     /// - Next 80 values: class scores (raw values, max is used for confidence)
+    /// 
+    /// Optional embeddings shape: [batch, channels] - feature vector for similarity search
     fn post_process(
         &self,
         output_shape: &[i64],
         output_data: &[f32],
+        embeddings: Option<Vec<f32>>,
         image_width: i32,
         image_height: i32,
-    ) -> RookLWResult<Vec<Detection>> {
+    ) -> RookLWResult<DetectionResult> {
         // YOLOv8 output: [1, 84, 8400]
         // 84 = 4 bbox coords + 80 class scores
         // 8400 = number of predictions
@@ -252,7 +269,7 @@ impl Yolov8ObjectDetector {
         let indices = self.apply_nms(&boxes, &confidences, &class_ids);
 
         let mut detections = Vec::new();
-        for idx in indices {
+        for &idx in &indices {
             let (x, y, width, height) = boxes[idx];
             let class_id = class_ids[idx];
             let confidence = confidences[idx];
@@ -273,7 +290,10 @@ impl Yolov8ObjectDetector {
             });
         }
 
-        Ok(detections)
+        Ok(DetectionResult {
+            detections,
+            embeddings,
+        })
     }
 
     /// Apply class-aware NMS to filter overlapping detections.
@@ -374,7 +394,7 @@ impl ObjectDetector for Yolov8ObjectDetector {
     fn detect(
         &mut self,
         image: &image::DynamicImage,
-    ) -> RookLWResult<Vec<Detection>> {
+    ) -> RookLWResult<DetectionResult> {
         self.detect(image)
     }
 }
