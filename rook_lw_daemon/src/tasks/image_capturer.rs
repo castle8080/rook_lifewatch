@@ -39,7 +39,7 @@ impl ImageCapturer {
         for capture_event in result.capture_events {
             self.on_image_processing_event(ImageProcessingEvent {
                 capture_event: capture_event.clone(),
-                detections: None,
+                detection_result: None,
             })?;
         }
 
@@ -61,7 +61,7 @@ impl ImageCapturer {
 
             self.on_image_processing_event(ImageProcessingEvent {
                 capture_event: capture_event.clone(),
-                detections: None,
+                detection_result: None,
             })?;
 
             sleep(self.capture_interval);

@@ -26,10 +26,10 @@ pub fn ImageInfo(image_info: ImageInfo) -> impl IntoView {
             </td>
             <td>{ image_info.motion_score.score }</td>
             <td>
-                { match &image_info.detections {
+                { match &image_info.detection {
                     None => view! { "No Detections" }.into_any(),
-                    Some(detections) =>
-                        detections
+                    Some(detection) =>
+                        detection.detections
                             .iter()
                             .map(|d| view! { <ImageInfoDetection detection=d.clone() /> })
                             .collect_view()

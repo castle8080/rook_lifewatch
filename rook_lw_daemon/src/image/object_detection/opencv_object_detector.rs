@@ -3,7 +3,7 @@
 use crate::{RookLWResult, RookLWError};
 use super::ObjectDetector;
 
-use rook_lw_models::image::Detection;
+use rook_lw_models::image::{Detection, DetectionResult};
 
 use opencv::{
     core::{Mat, Scalar, Size, Rect, Vector},
@@ -99,7 +99,7 @@ impl OpenCVObjectDetector {
     }
 
     /// Detect objects in an image.
-    pub fn detect(&mut self, image: &Mat) -> RookLWResult<Vec<Detection>> {
+    pub fn detect(&mut self, image: &Mat) -> RookLWResult<DetectionResult> {
         let image_width = image.cols();
         let image_height = image.rows();
 
@@ -129,7 +129,7 @@ impl OpenCVObjectDetector {
         self.post_process(&outputs, image_width, image_height)
     }
 
-    fn post_process(&self, outputs: &Vector<Mat>, image_width: i32, image_height: i32) -> RookLWResult<Vec<Detection>> {
+    fn post_process(&self, outputs: &Vector<Mat>, image_width: i32, image_height: i32) -> RookLWResult<DetectionResult> {
         let mut class_ids = Vector::<i32>::new();
         let mut confidences = Vector::<f32>::new();
         let mut boxes = Vector::<Rect>::new();
@@ -200,7 +200,7 @@ impl OpenCVObjectDetector {
             });
         }
 
-        Ok(detections)
+        Ok(DetectionResult::new(detections))
     }
 
 }
@@ -210,7 +210,7 @@ impl ObjectDetector for OpenCVObjectDetector {
     fn detect(
         &mut self,
         image: &image::DynamicImage,
-    ) -> RookLWResult<Vec<Detection>> {
+    ) -> RookLWResult<DetectionResult> {
         let mat_ref = dynamic_image_to_mat(image)
             .map_err(|e| RookLWError::Image(format!("OpenCV conversion error: {e}")))?;
         self.detect(&mat_ref)

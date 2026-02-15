@@ -49,6 +49,6 @@ opencv_model_confidence_threshold = 0.15
 
 # yolov8 object detector (YOLOv8 Nano via ONNX Runtime - recommended)
 # To use: set object_detector_type = "yolov8" and run download-model-files.py
-yolov8_model_path = "models/yolov8n.onnx"
+yolov8_model_path = "models/yolov8n_with_embeddings.onnx"
 yolov8_model_names_path = "models/coco.names"
 yolov8_model_confidence_threshold = 0.15

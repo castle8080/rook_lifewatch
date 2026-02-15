@@ -43,18 +43,19 @@ impl ImageDetector {
         );
     
         let timer = Instant::now();
-        let detections = self.object_detector.detect(&capture_event.image)?;
+        let detection_result = self.object_detector.detect(&capture_event.image)?;
         let elapsed = timer.elapsed();
         
         info!(
             event_id = %capture_event.event_id,
             detection_time_ms = elapsed.as_millis(),
-            detection_count = detections.len(),
+            detection_count = detection_result.detections.len(),
+            has_embeddings = detection_result.has_embeddings(),
             "Object detection completed"
         );
 
         if tracing::enabled!(tracing::Level::INFO) {
-            for (i, detection) in detections.iter().enumerate() {
+            for (i, detection) in detection_result.detections.iter().enumerate() {
                 info!(
                     detection_index = i,
                     class_id = detection.class_id,
@@ -66,9 +67,9 @@ impl ImageDetector {
         }
 
         // Only send event if there are detections
-        if detections.len() > 0 {
+        if detection_result.detections.len() > 0 {
             let image_processing_event = ImageProcessingEvent {
-                detections: Some(detections),
+                detection_result: Some(detection_result),
                 capture_event: capture_event.clone(),
             };
             self.produce(image_processing_event)?;

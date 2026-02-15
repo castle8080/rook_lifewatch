@@ -76,12 +76,12 @@ impl BatchImageObjectDetector {
         
         info!("Image loaded, running detection");
 
-        let detections = self.object_detector.detect(&img)?;
+        let detection_result = self.object_detector.detect(&img)?;
 
-        info!(detection_count = detections.len(), "Detections found");
+        info!(detection_count = detection_result.detections.len(), "Detections found");
 
-        // Write detections to JSON file.
-        let json_data = serde_json::to_string_pretty(&detections)?;
+        // Write detection result to JSON file.
+        let json_data = serde_json::to_string_pretty(&detection_result)?;
         std::fs::write(detection_file, json_data)?;
 
         info!(detection_file = %detection_file.display(), "Wrote detections file");
