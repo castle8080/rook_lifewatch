@@ -73,6 +73,8 @@ impl Yolov8ObjectDetector {
             .commit_from_memory(std::fs::read(model_path).context("Failed to read model file")?.as_slice())
             .context("Failed to load ONNX model")?;
 
+        tracing::info!(model_file = %model_path.display(), "Loaded model file.");
+
         // Load class names
         let file = File::open(classes_path).context("Failed to open classes file")?;
         let reader = BufReader::new(file);
@@ -141,6 +143,8 @@ impl Yolov8ObjectDetector {
         let shape_vec = output_shape.as_ref().to_vec();
         let data_vec = output_data.to_vec();
         
+        tracing::info!(outputs_len = outputs.len(), "Outputs from tensor");
+
         // Extract embeddings if available
         let embeddings = if outputs.len() >= 2 {
             let emb_tuple = outputs[1].try_extract_tensor::<f32>()
