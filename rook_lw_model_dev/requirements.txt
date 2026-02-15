@@ -1,0 +1,30 @@
+# YOLOv8 and model export
+ultralytics
+torch
+torchvision
+onnx
+onnxruntime
+onnxscript  # Required for torch.onnx.export with dynamo backend
+# onnx-simplifier  # Commented out - doesn't support Python 3.13 yet
+
+# Scientific computing
+numpy
+polars
+opencv-python
+
+# Jupyter and visualization
+jupyter
+jupyterlab
+notebook
+ipykernel
+matplotlib
+seaborn
+plotly
+
+# Model inspection and utilities
+netron  # For visualizing ONNX models
+onnxmltools
+protobuf
+
+# Progress bars and utilities
+tqdm
