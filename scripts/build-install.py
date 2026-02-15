@@ -11,7 +11,8 @@ project_dirs = [
     "rook_lw_daemon",
     "rook_lw_admin",
     "rook_lw_admin_fe",
-    "rook_lw_models"
+    "rook_lw_models",
+    "rook_lw_model_dev",
 ]
 
 # We don't support libcamera on windows.
@@ -19,7 +20,6 @@ if platform.system() == 'Windows':
     project_dirs = [pd for pd in project_dirs if 'libcamera' not in pd]
 
 doownlad_scripts = [
-    "scripts/download-model-files.py",
     "scripts/install-onnxruntime.py",
 ]
 
