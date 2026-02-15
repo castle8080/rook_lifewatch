@@ -13,4 +13,8 @@ jupyter nbconvert --to notebook --execute --inplace \
     --ExecutePreprocessor.timeout=600 \
     export_yolov8_with_embeddings.ipynb
 
+jupyter nbconvert --to notebook --execute --inplace \
+    --ExecutePreprocessor.timeout=600 \
+    download_prebuilt_models.ipynb
+
 echo "✓ Model export complete"
