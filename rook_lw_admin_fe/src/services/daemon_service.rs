@@ -4,7 +4,7 @@ use rook_lw_models::process::ProcessInfo;
 use serde::Deserialize;
 
 use crate::RookLWAppResult;
-use crate::services::{response_ok, response_ok_or_not_found, UserService, add_signature_if_needed};
+use crate::services::{response_ok, response_ok_or_not_found, UserService, add_signature};
 
 #[derive(Debug, Clone)]
 pub struct DaemonService {
@@ -42,7 +42,7 @@ impl DaemonService {
         let body = b"";
 
         let request = Request::post(url.as_str());
-        let request = add_signature_if_needed(self.user_service.as_ref(), request, "POST", &url, body).await?;
+        let request = add_signature(self.user_service.as_ref(), request, "POST", &url, body).await?;
         
         let resp = request.send().await?;
         let resp = response_ok(resp).await?;
@@ -54,7 +54,7 @@ impl DaemonService {
         let body = b"";
 
         let request = Request::get(url.as_str());
-        let request = add_signature_if_needed(self.user_service.as_ref(), request, "GET", &url, body).await?;
+        let request = add_signature(self.user_service.as_ref(), request, "GET", &url, body).await?;
         
         let resp = request.send().await?;
         let resp = response_ok_or_not_found(resp).await?;

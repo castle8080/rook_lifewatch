@@ -2,7 +2,7 @@ use gloo_net::http::Request;
 use rook_lw_models::image::{ImageInfo, ImageInfoSearchOptions};
 
 use crate::RookLWAppResult;
-use crate::services::{response_ok, response_ok_or_not_found, UserService, add_signature_if_needed};
+use crate::services::{response_ok, response_ok_or_not_found, UserService, add_signature};
 
 #[derive(Debug, Clone)]
 pub struct ImageInfoService {
@@ -31,7 +31,7 @@ impl ImageInfoService {
         let body = b"";
 
         let request = Request::get(url.as_str());
-        let request = add_signature_if_needed(self.user_service.as_ref(), request, "GET", &url, body).await?;
+        let request = add_signature(self.user_service.as_ref(), request, "GET", &url, body).await?;
 
         let resp = request.send().await?;
         let resp = response_ok_or_not_found(resp).await?;
@@ -55,7 +55,9 @@ impl ImageInfoService {
         let body = b"";
 
         let request = Request::get(url.as_str());
-        let request = add_signature_if_needed(self.user_service.as_ref(), request, "GET", &url, body).await?;
+        let request = add_signature(self.user_service.as_ref(), request, "GET", &url, body).await?;
+
+        tracing::info!("Sending image search request to URL: {}", url);
 
         let resp = request.send().await?;
         let resp = response_ok(resp).await?;

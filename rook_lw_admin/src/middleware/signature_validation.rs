@@ -6,7 +6,7 @@ use actix_web::{
     web::Bytes,
 };
 use crate::app::AppState;
-use crate::services::RequestSignatureService;
+use crate::services::verify_signature;
 use rook_lw_models::user::{RequestSignature, User};
 use actix_web::web::Data;
 use tracing::{debug, warn, info};
@@ -229,17 +229,21 @@ pub async fn signature_validation(
             actix_web::error::ErrorUnauthorized("Invalid authentication signature")
         })?;
 
+    info!("Found user for signature: {}", user.name);
+
     // Build URL for verification
     let url = build_verification_url(&req);
+
+    info!("Verifying signature for URL: {}", url);
 
     // Extract and buffer the request body
     let (http_req, payload) = req.into_parts();
     let body_bytes = buffer_request_body(payload, config.max_body_size).await?;
     
-    debug!("Body size: {} bytes", body_bytes.len());
+    info!("Body size: {} bytes", body_bytes.len());
 
     // Verify signature
-    let is_valid = RequestSignatureService::verify_signature(
+    let is_valid = verify_signature(
         &user,
         &request_sig,
         http_req.method().as_str(),
@@ -256,7 +260,7 @@ pub async fn signature_validation(
         return Err(actix_web::error::ErrorUnauthorized("Invalid authentication signature"));
     }
 
-    debug!("Signature valid for user: {}", user.name);
+    info!("Signature valid for user: {}", user.name);
 
     // Store user in request extensions and reconstruct request
     http_req.extensions_mut().insert(user);

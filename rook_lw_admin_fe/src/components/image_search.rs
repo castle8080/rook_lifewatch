@@ -107,23 +107,28 @@ pub fn ImageSearch() -> impl IntoView {
     let (loading, set_loading) = signal(false);
     let (image_infos, set_image_infos) = signal(None::<Vec<ImageInfo>>);
 
-    let image_info_service = match use_context::<ImageInfoService>() {
+    let base_service = match use_context::<ImageInfoService>() {
         Some(s) => s,
         None => return view! {
             <div>Error</div>
         }.into_any()
     };
+    
+    let user_service_signal = expect_context::<RwSignal<crate::services::UserService>>();
 
     Effect::new(move |_| {
         let set_error = set_error.clone();
         let set_loading = set_loading.clone();
-        let image_info_service = image_info_service.clone();
+        let base_service = base_service.clone();
         let set_image_infos = set_image_infos.clone();
 
         set_error.set(None);
         set_loading.set(true);
 
         spawn_local(async move {
+            let user_service = user_service_signal.get_untracked();
+            let image_info_service = base_service.with_user_service(user_service);
+            
             let search_options = ImageInfoSearchOptions::default();
             match image_info_service.search(&search_options).await {
                 Err(e) => {

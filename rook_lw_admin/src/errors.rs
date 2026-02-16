@@ -56,6 +56,12 @@ impl From<TryFromIntError> for RookLWAdminError {
     }
 }
 
+impl From<url::ParseError> for RookLWAdminError {
+    fn from(err: url::ParseError) -> Self {
+        RookLWAdminError::Input(format!("URL parse error: {}", err))
+    }
+}
+
 impl ResponseError for RookLWAdminError {
     fn status_code(&self) -> StatusCode {
         match self {

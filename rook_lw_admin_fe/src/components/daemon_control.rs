@@ -101,22 +101,24 @@ pub fn DaemonControl() -> impl IntoView {
     let (process_info, set_process_info) = signal(None::<Option<ProcessInfo>>);
     let (process_info_trigger, set_process_info_trigger) = signal(false);
 
-    let daemon_service = match use_context::<DaemonService>() {
+    let base_service = match use_context::<DaemonService>() {
         Some(s) => s,
         None => return view! {
             <div>"Error: could not find daemon service."</div>
         }.into_any()
     };
+    
+    let user_service_signal = expect_context::<RwSignal<crate::services::UserService>>();
 
     // Trigger call on component startup.
     let get_process_status = {
         let set_process_info = set_process_info.clone();
-        let daemon_service = daemon_service.clone();
+        let base_service = base_service.clone();
         let set_error = set_error.clone();
 
         move |_: Option<()>| {
             let set_process_info = set_process_info.clone();
-            let daemon_service = daemon_service.clone();
+            let base_service = base_service.clone();
             let process_info_trigger = process_info_trigger.clone();
 
             // Get value to re-trigger lookup.
@@ -126,6 +128,9 @@ pub fn DaemonControl() -> impl IntoView {
             set_error.set(None);
 
             spawn_local(async move {
+                let user_service = user_service_signal.get_untracked();
+                let daemon_service = base_service.with_user_service(user_service);
+                
                 match daemon_service.status().await {
                     Err(e) => set_error.set(Some(format!("Could not get status: {}", e))),
                     Ok(process_info) => set_process_info.set(Some(process_info))
@@ -139,18 +144,21 @@ pub fn DaemonControl() -> impl IntoView {
 
     // Trigger call to start service
     let on_start = {
-        let daemon_service = daemon_service.clone();
+        let base_service = base_service.clone();
         let set_error = set_error.clone();
         let set_process_info_trigger = set_process_info_trigger.clone();
 
         info!("Calling start.");
 
         move |_| {
-            let daemon_service = daemon_service.clone();
+            let base_service = base_service.clone();
             let set_error = set_error.clone();
             let set_process_info_trigger = set_process_info_trigger.clone();
 
             spawn_local(async move {
+                let user_service = user_service_signal.get_untracked();
+                let daemon_service = base_service.with_user_service(user_service);
+                
                 match daemon_service.start().await {
                     Err(e) => {
                         set_error.set(Some(format!("Failed to start: {}", e)));
@@ -165,18 +173,21 @@ pub fn DaemonControl() -> impl IntoView {
     };
     
     let on_stop = {
-        let daemon_service = daemon_service.clone();
+        let base_service = base_service.clone();
         let set_error = set_error.clone();
         let set_process_info_trigger = set_process_info_trigger.clone();
 
         info!("Calling stop.");
 
         move |_| {
-            let daemon_service = daemon_service.clone();
+            let base_service = base_service.clone();
             let set_error = set_error.clone();
             let set_process_info_trigger = set_process_info_trigger.clone();
 
             spawn_local(async move {
+                let user_service = user_service_signal.get_untracked();
+                let daemon_service = base_service.with_user_service(user_service);
+                
                 match daemon_service.stop().await {
                     Err(e) => {
                         set_error.set(Some(format!("Failed to stop: {}", e)));

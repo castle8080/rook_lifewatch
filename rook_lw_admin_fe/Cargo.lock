@@ -1459,6 +1459,7 @@ dependencies = [
  "sha2",
  "thiserror 2.0.18",
  "tracing",
+ "url",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "wasm-bindgen-test",
@@ -1999,6 +2000,7 @@ dependencies = [
  "idna",
  "percent-encoding",
  "serde",
+ "serde_derive",
 ]
 
 [[package]]

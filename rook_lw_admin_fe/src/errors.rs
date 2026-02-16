@@ -31,3 +31,9 @@ impl From<serde_qs::Error> for RookLWAppError {
         RookLWAppError::Parse(err.to_string())
     }
 }
+
+impl From<url::ParseError> for RookLWAppError {
+    fn from(err: url::ParseError) -> Self {
+        RookLWAppError::Parse(err.to_string())
+    }
+}

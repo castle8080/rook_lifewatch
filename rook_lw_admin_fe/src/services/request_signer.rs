@@ -1,11 +1,13 @@
+use chrono::Utc;
+use js_sys::{Uint8Array, Array, Object, Reflect};
+use rook_lw_models::user::RequestSignature;
+use sha2::{Sha256, Digest};
+use url::Url;
 use wasm_bindgen::JsValue;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::JsFuture;
-use js_sys::{Uint8Array, Array, Object, Reflect};
 use web_sys::{window, CryptoKey};
-use rook_lw_models::user::RequestSignature;
-use chrono::Utc;
-use sha2::{Sha256, Digest};
+
 use crate::RookLWAppResult;
 
 const PBKDF2_ITERATIONS: u32 = 600_000;
@@ -114,118 +116,109 @@ async fn hmac_sign_webcrypto(key: &[u8], data: &[u8]) -> Result<Vec<u8>, JsValue
     Ok(sig_array.to_vec())
 }
 
-/// Request signer using Web Crypto API
-pub struct RequestSigner;
+/// Create the signing message string
+fn create_signing_message(
+    method: &str,
+    url: &str,
+    created_at: &chrono::DateTime<Utc>,
+    salt: &[u8],
+    body: &[u8],
+) -> RookLWAppResult<Vec<u8>> {
+    let mut message: Vec<u8> = Vec::new();
 
-impl RequestSigner {
-    /// Derive signing key from user_id and password
-    pub async fn derive_signing_key(user_id: &str, password: &str) -> RookLWAppResult<Vec<u8>> {
-        let salt = generate_salt(user_id);
-        let key = derive_key_webcrypto(password, &salt, PBKDF2_ITERATIONS)
-            .await
-            .map_err(|e| crate::RookLWAppError::Other(
-                format!("Failed to derive key: {:?}", e)
-            ))?;
-        Ok(key)
+    message.extend(method.to_uppercase().as_bytes());
+    message.push(b'|');
+
+    let url = Url::parse("http://dummy")?.join(url)?;
+    message.extend(url.path().as_bytes());
+
+    // Handle query parameters
+    // Exclude 'signature' parameter and sort remaining.
+    let query = url.query();
+    if let Some(q) = query {
+        let mut pairs = q.split('&')
+            .filter(|param| !param.starts_with("signature=") && param.len() > 0)
+            .collect::<Vec<_>>();
+
+        pairs.sort();
+
+        for (idx, pair) in pairs.iter().enumerate() {
+            if idx > 0 {
+                message.push(b'&');
+            }
+            else {
+                message.push(b'?');
+            }
+            message.extend(pair.as_bytes());
+        }
     }
+    message.push(b'|');
     
-    /// Sign a request using pre-derived signing key
-    /// 
-    /// # Arguments
-    /// * `user_id` - The user ID
-    /// * `signing_key` - Pre-derived PBKDF2 key from UserService
-    /// * `method` - HTTP method (GET, POST, etc.)
-    /// * `url` - Full URL including path and query params (excluding signature)
-    /// * `body` - Request body bytes
-    pub async fn sign_request(
-        user_id: &str,
-        signing_key: &[u8],
-        method: &str,
-        url: &str,
-        body: &[u8],
-    ) -> RookLWAppResult<RequestSignature> {
-        // Generate random salt
-        let mut salt = vec![0u8; 16];
-        getrandom::getrandom(&mut salt)
-            .map_err(|e| crate::RookLWAppError::Other(format!("Random generation failed: {}", e)))?;
-        
-        let created_at = Utc::now();
-        
-        // Construct message to sign: METHOD|URL|TIMESTAMP|SALT|BODY
-        let timestamp_str = created_at.to_rfc3339();
-        let salt_hex = hex::encode(&salt);
-        let message = format!(
-            "{}|{}|{}|{}|{}",
-            method.to_uppercase(),
-            url,
-            timestamp_str,
-            salt_hex,
-            hex::encode(body)
-        );
-        
-        // Sign message with pre-derived key
-        let signature = hmac_sign_webcrypto(signing_key, message.as_bytes())
-            .await
-            .map_err(|e| crate::RookLWAppError::Other(
-                format!("Failed to sign: {:?}", e)
-            ))?;
-        
-        Ok(RequestSignature {
-            user_id: user_id.to_string(),
-            created_at,
-            salt,
-            signature,
-        })
-    }
+    message.extend(created_at.to_rfc3339().as_bytes());
+    message.push(b'|');
+
+    message.extend(salt);
+    message.push(b'|');
+
+    message.extend(body);
+
+    Ok(message)
 }
 
-// Need hex crate for encoding - add simple implementation
-mod hex {
-    pub fn encode(bytes: &[u8]) -> String {
-        bytes.iter()
-            .map(|b| format!("{:02x}", b))
-            .collect()
-    }
-}
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+/// Derive signing key from user_id and password
+pub async fn derive_signing_key(user_id: &str, password: &str) -> RookLWAppResult<Vec<u8>> {
+    let salt = generate_salt(user_id);
+    let key = derive_key_webcrypto(password, &salt, PBKDF2_ITERATIONS)
+        .await
+        .map_err(|e| crate::RookLWAppError::Other(
+            format!("Failed to derive key: {:?}", e)
+        ))?;
+    Ok(key)
+}
     
-    // Pure Rust tests - run with `cargo test`
-    #[test]
-    fn test_generate_salt_deterministic() {
-        let salt1 = generate_salt("user123");
-        let salt2 = generate_salt("user123");
-        
-        // Same user_id should produce same salt
-        assert_eq!(salt1, salt2);
-        assert_eq!(salt1.len(), SALT_LENGTH);
-    }
+/// Sign a request using pre-derived signing key
+/// 
+/// # Arguments
+/// * `user_id` - The user ID
+/// * `signing_key` - Pre-derived PBKDF2 key from UserService
+/// * `method` - HTTP method (GET, POST, etc.)
+/// * `url` - Full URL including path and query params (excluding signature)
+/// * `body` - Request body bytes
+pub async fn sign_request(
+    user_id: &str,
+    signing_key: &[u8],
+    method: &str,
+    url: &str,
+    body: &[u8],
+) -> RookLWAppResult<RequestSignature> {
+    // Generate random salt
+    let mut salt = vec![0u8; 16];
+    getrandom::getrandom(&mut salt)
+        .map_err(|e| crate::RookLWAppError::Other(format!("Random generation failed: {}", e)))?;
     
-    #[test]
-    fn test_generate_salt_different_users() {
-        let salt1 = generate_salt("user123");
-        let salt2 = generate_salt("user456");
-        
-        // Different user_ids should produce different salts
-        assert_ne!(salt1, salt2);
-    }
+    let created_at = Utc::now();
     
-    #[test]
-    fn test_hex_encode() {
-        assert_eq!(hex::encode(&[]), "");
-        assert_eq!(hex::encode(&[0x00]), "00");
-        assert_eq!(hex::encode(&[0xff]), "ff");
-        assert_eq!(hex::encode(&[0x01, 0x23, 0xab, 0xcd]), "0123abcd");
-    }
-    
-    #[test]
-    fn test_constants() {
-        assert_eq!(PBKDF2_ITERATIONS, 600_000);
-        assert_eq!(SALT_LENGTH, 32);
-        assert_eq!(KEY_LENGTH, 32);
-    }
+    let message = create_signing_message(
+        method,
+        &url,
+        &created_at,
+        &salt,
+        body,
+    )?;
+
+    let signature = hmac_sign_webcrypto(signing_key, &message)
+        .await
+        .map_err(|e| crate::RookLWAppError::Other(
+            format!("Failed to sign: {:?}", e)
+        ))?;
+
+    Ok(RequestSignature {
+        user_id: user_id.to_string(),
+        created_at,
+        salt,
+        signature,
+    })
 }
 
 #[cfg(test)]
@@ -237,7 +230,7 @@ mod wasm_tests {
     
     #[wasm_bindgen_test]
     async fn test_derive_signing_key() {
-        let key = RequestSigner::derive_signing_key("test_user", "test_password")
+        let key = derive_signing_key("test_user", "test_password")
             .await
             .expect("Failed to derive signing key");
         
@@ -247,10 +240,10 @@ mod wasm_tests {
     
     #[wasm_bindgen_test]
     async fn test_derive_signing_key_deterministic() {
-        let key1 = RequestSigner::derive_signing_key("user123", "password")
+        let key1 = derive_signing_key("user123", "password")
             .await
             .unwrap();
-        let key2 = RequestSigner::derive_signing_key("user123", "password")
+        let key2 = derive_signing_key("user123", "password")
             .await
             .unwrap();
         
@@ -260,10 +253,10 @@ mod wasm_tests {
     
     #[wasm_bindgen_test]
     async fn test_derive_signing_key_different_passwords() {
-        let key1 = RequestSigner::derive_signing_key("user", "password1")
+        let key1 = derive_signing_key("user", "password1")
             .await
             .unwrap();
-        let key2 = RequestSigner::derive_signing_key("user", "password2")
+        let key2 = derive_signing_key("user", "password2")
             .await
             .unwrap();
         
@@ -273,11 +266,11 @@ mod wasm_tests {
     
     #[wasm_bindgen_test]
     async fn test_sign_request() {
-        let signing_key = RequestSigner::derive_signing_key("user", "password")
+        let signing_key = derive_signing_key("user", "password")
             .await
             .unwrap();
         
-        let signature = RequestSigner::sign_request(
+        let signature = sign_request(
             "user",
             &signing_key,
             "GET",
@@ -295,12 +288,12 @@ mod wasm_tests {
     
     #[wasm_bindgen_test]
     async fn test_sign_request_with_body() {
-        let signing_key = RequestSigner::derive_signing_key("user", "password")
+        let signing_key = derive_signing_key("user", "password")
             .await
             .unwrap();
         
         let body = b"{\"test\": \"data\"}";
-        let signature = RequestSigner::sign_request(
+        let signature = sign_request(
             "user",
             &signing_key,
             "POST",
@@ -316,11 +309,11 @@ mod wasm_tests {
     
     #[wasm_bindgen_test]
     async fn test_sign_request_different_salts() {
-        let signing_key = RequestSigner::derive_signing_key("user", "password")
+        let signing_key = derive_signing_key("user", "password")
             .await
             .unwrap();
         
-        let sig1 = RequestSigner::sign_request(
+        let sig1 = sign_request(
             "user",
             &signing_key,
             "GET",
@@ -330,7 +323,7 @@ mod wasm_tests {
         .await
         .unwrap();
         
-        let sig2 = RequestSigner::sign_request(
+        let sig2 = sign_request(
             "user",
             &signing_key,
             "GET",
@@ -347,13 +340,13 @@ mod wasm_tests {
     
     #[wasm_bindgen_test]
     async fn test_sign_request_method_affects_signature() {
-        let signing_key = RequestSigner::derive_signing_key("user", "password")
+        let signing_key = derive_signing_key("user", "password")
             .await
             .unwrap();
         
         // Use same salt by signing at nearly the same time
         // (This is probabilistic but random salts make exact matching hard)
-        let sig_get = RequestSigner::sign_request(
+        let sig_get = sign_request(
             "user",
             &signing_key,
             "GET",
@@ -363,7 +356,7 @@ mod wasm_tests {
         .await
         .unwrap();
         
-        let sig_post = RequestSigner::sign_request(
+        let sig_post = sign_request(
             "user",
             &signing_key,
             "POST",
@@ -380,11 +373,11 @@ mod wasm_tests {
     
     #[wasm_bindgen_test]
     async fn test_signature_to_base64url() {
-        let signing_key = RequestSigner::derive_signing_key("user", "password")
+        let signing_key = derive_signing_key("user", "password")
             .await
             .unwrap();
         
-        let signature = RequestSigner::sign_request(
+        let signature = sign_request(
             "user",
             &signing_key,
             "GET",

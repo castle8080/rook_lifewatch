@@ -2,6 +2,8 @@ use web_sys::{window, Storage};
 use serde::{Serialize, Deserialize};
 use crate::RookLWAppResult;
 
+use crate::services::derive_signing_key;
+
 const SESSION_KEY: &str = "rook_lw_user_session";
 
 /// User credentials stored in memory/session
@@ -30,7 +32,7 @@ impl UserService {
     /// Log in a user and derive signing key
     pub async fn login(&mut self, user_id: String, password: String) -> RookLWAppResult<()> {
         // Derive signing key (expensive operation, done once)
-        let signing_key = super::RequestSigner::derive_signing_key(&user_id, &password).await?;
+        let signing_key = derive_signing_key(&user_id, &password).await?;
         
         let creds = UserCredentials { 
             user_id, 

@@ -38,12 +38,14 @@ pub fn ImageDisplay() -> impl IntoView {
     let (error, set_error) = signal(None::<String>);
     let (image_info, set_image_info) = signal(None::<ImageInfo>);
 
-    let image_info_service = match use_context::<ImageInfoService>() {
+    let base_service = match use_context::<ImageInfoService>() {
         Some(s) => s,
         None => return view! {
             <div>Error</div>
         }.into_any()
     };
+    
+    let user_service_signal = expect_context::<RwSignal<crate::services::UserService>>();
 
     let image_id = {
         move || {
@@ -53,7 +55,7 @@ pub fn ImageDisplay() -> impl IntoView {
 
     // Looks up image Info
     Effect::new(move |_| {
-        let image_info_service = image_info_service.clone();
+        let base_service = base_service.clone();
         let set_image_info = set_image_info.clone();
         let set_error = set_error.clone();
 
@@ -63,6 +65,9 @@ pub fn ImageDisplay() -> impl IntoView {
         let image_id = image_id();
 
         spawn_local(async move {
+            let user_service = user_service_signal.get_untracked();
+            let image_info_service = base_service.with_user_service(user_service);
+            
             match image_info_service.get(&image_id).await {
                 Err(e) => {
                     set_error.set(Some(format!("Couldn't retrieve image info: {}", e)));

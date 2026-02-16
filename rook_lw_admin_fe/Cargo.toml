@@ -21,6 +21,7 @@ serde_qs = "0.15.0"
 sha2 = "0.10"
 thiserror = "2.0.18"
 tracing = "0.1.44"
+url = { version = "2.5.8", features = ["serde"] }
 wasm-bindgen = "0.2.108"
 wasm-bindgen-futures = "0.4"
 wasm-tracing = "2.1.0"

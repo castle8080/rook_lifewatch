@@ -4,7 +4,9 @@ mod daemon_control;
 mod error_display;
 mod image_display;
 mod image_search;
+mod login;
 mod navbar;
+mod protected_route;
 mod scroll_to_top;
 mod serverops;
 
@@ -14,6 +16,8 @@ pub use error_display::*;
 pub use daemon_control::*;
 pub use image_display::*;
 pub use image_search::*;
+pub use login::*;
 pub use navbar::*;
+pub use protected_route::*;
 pub use scroll_to_top::*;
 pub use serverops::*;
