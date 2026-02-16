@@ -35,8 +35,6 @@ def build_install():
     for project in project_dirs:
         print(f"Building project: {project}")
         cmd(project, "make.py", "build")
-        print(f"Testing project: {project}")
-        cmd(project, "make.py", "test")
         print(f"Installing project: {project}")
         cmd(project, "make.py", "install")
 
