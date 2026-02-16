@@ -33,7 +33,7 @@ fn create_signing_message(
     let query = url.query();
     if let Some(q) = query {
         let mut pairs = q.split('&')
-            .filter(|param| !param.starts_with("signature=") && param.len() > 0)
+            .filter(|param| !param.starts_with("sig=") && param.len() > 0)
             .collect::<Vec<_>>();
 
         pairs.sort();

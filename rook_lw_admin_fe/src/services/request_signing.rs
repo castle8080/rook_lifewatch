@@ -2,7 +2,26 @@
 
 use gloo_net::http::RequestBuilder;
 use crate::RookLWAppResult;
-use super::{UserService, sign_request};
+use super::{UserService, sign_request, sign_url};
+
+/// Get a signed URL if user is authenticated.
+pub async fn get_signed_url(user_service: Option<&UserService>, url: &str) -> RookLWAppResult<String> {
+    if let Some(user_service) = user_service {
+        if let Some(signing_key) = user_service.signing_key() {
+            let user_id = user_service.user_id().expect("user_id should exist with signing_key");
+
+            // Sign the request using cached key
+            let signed_url = sign_url(
+                user_id,
+                signing_key,
+                url,
+            ).await?;
+
+            return Ok(signed_url);
+        }
+    }
+    Ok(url.to_string())
+}
 
 /// Add signature header to request builder if user is authenticated.
 /// 

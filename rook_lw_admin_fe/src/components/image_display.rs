@@ -6,6 +6,7 @@ use rook_lw_models::image::ImageInfo;
 
 use crate::components::ErrorDisplay;
 use crate::services::ImageInfoService;
+use crate::services::get_signed_url;
 
 #[component]
 pub fn ImageDetections(image_info: ImageInfo) -> impl IntoView {
@@ -37,6 +38,7 @@ pub fn ImageDisplay() -> impl IntoView {
     let params = use_params_map();
     let (error, set_error) = signal(None::<String>);
     let (image_info, set_image_info) = signal(None::<ImageInfo>);
+    let (image_url, set_image_url) = signal(String::new());
 
     let base_service = match use_context::<ImageInfoService>() {
         Some(s) => s,
@@ -58,21 +60,34 @@ pub fn ImageDisplay() -> impl IntoView {
         let base_service = base_service.clone();
         let set_image_info = set_image_info.clone();
         let set_error = set_error.clone();
+        let set_image_url = set_image_url.clone();
 
         set_error.set(None);
         set_image_info.set(None);
+        set_image_url.set(String::new());
 
         let image_id = image_id();
 
         spawn_local(async move {
             let user_service = user_service_signal.get_untracked();
-            let image_info_service = base_service.with_user_service(user_service);
+            let image_info_service = base_service.with_user_service(user_service.clone());
             
             match image_info_service.get(&image_id).await {
                 Err(e) => {
                     set_error.set(Some(format!("Couldn't retrieve image info: {}", e)));
                 }
                 Ok(image_info_opt) => {
+                    if let Some(ref info) = image_info_opt {
+                        let url = format!("/api/image/{}", &info.image_path);
+                        match get_signed_url(Some(&user_service), &url).await {
+                            Ok(signed_url) => {
+                                set_image_url.set(signed_url);
+                            }
+                            Err(e) => {
+                                set_error.set(Some(format!("Failed to sign URL: {}", e)));
+                            }
+                        }
+                    }
                     set_image_info.set(image_info_opt);
                 }
             }
@@ -85,8 +100,9 @@ pub fn ImageDisplay() -> impl IntoView {
             { move ||
                 match image_info.get() {
                     Some(image_info) => {
+                        let url = image_url.get();
                         view! { 
-                            <img src={ format!("/api/image/{}", &image_info.image_path) }/>
+                            <img src={ url }/>
                             <br/>
                             <ImageDetections image_info=image_info/>
                         }.into_any()

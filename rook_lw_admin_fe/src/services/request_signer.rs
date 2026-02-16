@@ -137,7 +137,7 @@ fn create_signing_message(
     let query = url.query();
     if let Some(q) = query {
         let mut pairs = q.split('&')
-            .filter(|param| !param.starts_with("signature=") && param.len() > 0)
+            .filter(|param| !param.starts_with("sig=") && param.len() > 0)
             .collect::<Vec<_>>();
 
         pairs.sort();
@@ -176,7 +176,26 @@ pub async fn derive_signing_key(user_id: &str, password: &str) -> RookLWAppResul
         ))?;
     Ok(key)
 }
+
+/// Sign a URL by appending signature as query parameter
+pub async fn sign_url(user_id: &str, signing_key: &[u8], url: &str) -> RookLWAppResult<String> {
+    let body = b"";
+    let signature = sign_request(
+        user_id,
+        signing_key,
+        "GET",
+        url,
+        body,
+    ).await?;
     
+    let sig_base64 = signature.to_base64url()
+        .map_err(|e| crate::RookLWAppError::Other(format!("Failed to encode signature: {}", e)))?;
+    
+    let separator = if url.contains('?') { "&" } else { "?" };
+    let signed_url = format!("{}{}sig={}", url, separator, sig_base64);
+    Ok(signed_url)
+}
+
 /// Sign a request using pre-derived signing key
 /// 
 /// # Arguments
