@@ -15,6 +15,9 @@ pub enum RookLWAppError {
 
     #[error("server error: {0}")]
     Server(String),
+    
+    #[error("{0}")]
+    Other(String),
 }
 
 impl From<gloo_net::Error> for RookLWAppError {
