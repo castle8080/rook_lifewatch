@@ -31,7 +31,7 @@ impl ImageInfoService {
         let body = b"";
 
         let request = Request::get(url.as_str());
-        let request = add_signature(self.user_service.as_ref(), request, "GET", &url, body).await?;
+        let request = add_signature(self.user_service.as_ref(), request, "GET", &url, body)?;
 
         let resp = request.send().await?;
         let resp = response_ok_or_not_found(resp).await?;
@@ -55,7 +55,7 @@ impl ImageInfoService {
         let body = b"";
 
         let request = Request::get(url.as_str());
-        let request = add_signature(self.user_service.as_ref(), request, "GET", &url, body).await?;
+        let request = add_signature(self.user_service.as_ref(), request, "GET", &url, body)?;
 
         tracing::info!("Sending image search request to URL: {}", url);
 

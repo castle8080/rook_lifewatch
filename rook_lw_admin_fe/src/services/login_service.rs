@@ -32,7 +32,7 @@ impl LoginService {
         let body = b"";
 
         let request = Request::post(url.as_str());
-        let request = add_signature(Some(user_service), request, "POST", &url, body).await?;
+        let request = add_signature(Some(user_service), request, "POST", &url, body)?;
 
         let resp = request.send().await?;
         let resp = response_ok(resp).await?;

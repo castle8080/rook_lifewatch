@@ -5,7 +5,7 @@ use crate::RookLWAppResult;
 use super::{UserService, sign_request, sign_url};
 
 /// Get a signed URL if user is authenticated.
-pub async fn get_signed_url(user_service: Option<&UserService>, url: &str) -> RookLWAppResult<String> {
+pub fn get_signed_url(user_service: Option<&UserService>, url: &str) -> RookLWAppResult<String> {
     if let Some(user_service) = user_service {
         if let Some(signing_key) = user_service.signing_key() {
             let user_id = user_service.user_id().expect("user_id should exist with signing_key");
@@ -15,7 +15,7 @@ pub async fn get_signed_url(user_service: Option<&UserService>, url: &str) -> Ro
                 user_id,
                 signing_key,
                 url,
-            ).await?;
+            )?;
 
             return Ok(signed_url);
         }
@@ -34,7 +34,7 @@ pub async fn get_signed_url(user_service: Option<&UserService>, url: &str) -> Ro
 /// 
 /// # Returns
 /// Modified request builder with X-Signature header added if authenticated
-pub async fn add_signature(
+pub fn add_signature(
     user_service: Option<&UserService>,
     mut request: RequestBuilder,
     method: &str,
@@ -52,7 +52,7 @@ pub async fn add_signature(
                 method,
                 url,
                 body,
-            ).await?;
+            )?;
             
             // Add signature header
             let sig_header = signature.to_base64url()

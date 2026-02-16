@@ -30,9 +30,9 @@ impl UserService {
     }
     
     /// Log in a user and derive signing key
-    pub async fn login(&mut self, user_id: String, password: String) -> RookLWAppResult<()> {
+    pub fn login(&mut self, user_id: String, password: String) -> RookLWAppResult<()> {
         // Derive signing key (expensive operation, done once)
-        let signing_key = derive_signing_key(&user_id, &password).await?;
+        let signing_key = derive_signing_key(&user_id, &password)?;
         
         let creds = UserCredentials { 
             user_id, 
@@ -186,12 +186,12 @@ mod wasm_tests {
     }
     
     #[wasm_bindgen_test]
-    async fn test_login_success() {
+    fn test_login_success() {
         clear_test_storage();
         let mut service = UserService::new();
         
         // Login with test credentials
-        let result = service.login("test_user".to_string(), "test_password".to_string()).await;
+        let result = service.login("test_user".to_string(), "test_password".to_string());
         assert!(result.is_ok(), "Login should succeed");
         
         // Check authentication state
@@ -211,12 +211,12 @@ mod wasm_tests {
     }
     
     #[wasm_bindgen_test]
-    async fn test_login_persistence() {
+    fn test_login_persistence() {
         clear_test_storage();
         let mut service = UserService::new();
         
         // Login
-        service.login("persistent_user".to_string(), "persistent_pass".to_string()).await.unwrap();
+        service.login("persistent_user".to_string(), "persistent_pass".to_string()).unwrap();
         
         // Create new service instance (should load from session)
         let new_service = UserService::new();

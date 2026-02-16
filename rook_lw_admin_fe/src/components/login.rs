@@ -34,7 +34,7 @@ pub fn Login() -> impl IntoView {
             // First, initialize the UserService with credentials
             let mut user_service = user_service_signal.get_untracked();
             
-            match user_service.login(username_val.clone(), password_val.clone()).await {
+            match user_service.login(username_val.clone(), password_val.clone()) {
                 Ok(()) => {
                     // Now verify with the server
                     match login_service.verify_login(&user_service).await {

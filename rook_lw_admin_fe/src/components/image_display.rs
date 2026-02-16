@@ -79,7 +79,7 @@ pub fn ImageDisplay() -> impl IntoView {
                 Ok(image_info_opt) => {
                     if let Some(ref info) = image_info_opt {
                         let url = format!("/api/image/{}", &info.image_path);
-                        match get_signed_url(Some(&user_service), &url).await {
+                        match get_signed_url(Some(&user_service), &url) {
                             Ok(signed_url) => {
                                 set_image_url.set(signed_url);
                             }
@@ -101,11 +101,17 @@ pub fn ImageDisplay() -> impl IntoView {
                 match image_info.get() {
                     Some(image_info) => {
                         let url = image_url.get();
-                        view! { 
-                            <img src={ url }/>
-                            <br/>
-                            <ImageDetections image_info=image_info/>
-                        }.into_any()
+                        if url.is_empty() {
+                            view! {
+                                <span>"Loading image..."</span>
+                            }.into_any()
+                        } else {
+                            view! { 
+                                <img src={ url }/>
+                                <br/>
+                                <ImageDetections image_info=image_info/>
+                            }.into_any()
+                        }
                     },
                     None => {
                         view! {

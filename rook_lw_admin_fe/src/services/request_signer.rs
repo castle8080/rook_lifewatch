@@ -1,14 +1,13 @@
 use chrono::Utc;
-use js_sys::{Uint8Array, Array, Object, Reflect};
+use hmac::{Hmac, Mac};
+use pbkdf2::pbkdf2_hmac;
 use rook_lw_models::user::RequestSignature;
 use sha2::{Sha256, Digest};
 use url::Url;
-use wasm_bindgen::JsValue;
-use wasm_bindgen::JsCast;
-use wasm_bindgen_futures::JsFuture;
-use web_sys::{window, CryptoKey};
 
 use crate::RookLWAppResult;
+
+type HmacSha256 = Hmac<Sha256>;
 
 const PBKDF2_ITERATIONS: u32 = 600_000;
 const SALT_LENGTH: usize = 32;
@@ -23,97 +22,19 @@ fn generate_salt(user_id: &str) -> Vec<u8> {
     hash[0..SALT_LENGTH].to_vec()
 }
 
-/// Derive PBKDF2 key using Web Crypto API
-async fn derive_key_webcrypto(password: &str, salt: &[u8], iterations: u32) -> Result<Vec<u8>, JsValue> {
-    let crypto = window()
-        .ok_or_else(|| JsValue::from_str("No window object"))?
-        .crypto()
-        .map_err(|_| JsValue::from_str("No crypto object"))?;
-    
-    let subtle = crypto.subtle();
-    
-    // Import password as raw key material
-    let password_bytes = password.as_bytes();
-    let password_array = Uint8Array::from(password_bytes);
-    
-    let key_usages = {
-        let arr = Array::new();
-        arr.push(&"deriveBits".into());
-        arr
-    };
-    
-    let import_promise = subtle
-        .import_key_with_str("raw", &password_array, "PBKDF2", false, &key_usages)
-        .map_err(|e| JsValue::from_str(&format!("Failed to import password: {:?}", e)))?;
-    
-    let key_material = JsFuture::from(import_promise)
-        .await
-        .map_err(|e| JsValue::from_str(&format!("Failed to await import: {:?}", e)))?
-        .dyn_into::<CryptoKey>()
-        .map_err(|_| JsValue::from_str("Failed to convert to CryptoKey"))?;
-    
-    // Derive bits using PBKDF2 - construct params object manually
-    let derive_params = Object::new();
-    Reflect::set(&derive_params, &"name".into(), &"PBKDF2".into())?;
-    Reflect::set(&derive_params, &"salt".into(), &Uint8Array::from(salt))?;
-    Reflect::set(&derive_params, &"iterations".into(), &JsValue::from(iterations))?;
-    Reflect::set(&derive_params, &"hash".into(), &"SHA-256".into())?;
-    
-    let derive_promise = subtle
-        .derive_bits_with_object(&derive_params, &key_material, (KEY_LENGTH * 8) as u32)
-        .map_err(|e| JsValue::from_str(&format!("Failed to derive bits: {:?}", e)))?;
-    
-    let derived = JsFuture::from(derive_promise)
-        .await
-        .map_err(|e| JsValue::from_str(&format!("Failed to await derivation: {:?}", e)))?;
-    
-    let array = Uint8Array::new(&derived);
-    Ok(array.to_vec())
+/// Derive PBKDF2 key using pure Rust crypto
+fn derive_key_pbkdf2(password: &str, salt: &[u8], iterations: u32) -> Vec<u8> {
+    let mut key = vec![0u8; KEY_LENGTH];
+    pbkdf2_hmac::<Sha256>(password.as_bytes(), salt, iterations, &mut key);
+    key
 }
 
-/// Sign data using HMAC-SHA256 with Web Crypto API
-async fn hmac_sign_webcrypto(key: &[u8], data: &[u8]) -> Result<Vec<u8>, JsValue> {
-    let crypto = window()
-        .ok_or_else(|| JsValue::from_str("No window object"))?
-        .crypto()
-        .map_err(|_| JsValue::from_str("No crypto object"))?;
-    
-    let subtle = crypto.subtle();
-    
-    // Import key with typed params - construct manually for reliability
-    let key_array = Uint8Array::from(key);
-    
-    let import_params = Object::new();
-    Reflect::set(&import_params, &"name".into(), &"HMAC".into())?;
-    Reflect::set(&import_params, &"hash".into(), &"SHA-256".into())?;
-    
-    let key_usages = {
-        let arr = Array::new();
-        arr.push(&"sign".into());
-        arr
-    };
-    
-    let import_promise = subtle
-        .import_key_with_object("raw", &key_array, &import_params, false, &key_usages)
-        .map_err(|e| JsValue::from_str(&format!("Failed to import key: {:?}", e)))?;
-    
-    let crypto_key = JsFuture::from(import_promise)
-        .await
-        .map_err(|e| JsValue::from_str(&format!("Failed to await import key: {:?}", e)))?
-        .dyn_into::<CryptoKey>()
-        .map_err(|_| JsValue::from_str("Failed to convert to CryptoKey"))?;
-    
-    // Sign data with HMAC algorithm
-    let sign_promise = subtle
-        .sign_with_str_and_u8_array("HMAC", &crypto_key, data)
-        .map_err(|e| JsValue::from_str(&format!("Failed to sign: {:?}", e)))?;
-    
-    let signature = JsFuture::from(sign_promise)
-        .await
-        .map_err(|e| JsValue::from_str(&format!("Failed to await signature: {:?}", e)))?;
-    
-    let sig_array = Uint8Array::new(&signature);
-    Ok(sig_array.to_vec())
+/// Sign data using HMAC-SHA256 with pure Rust crypto
+fn hmac_sign(key: &[u8], data: &[u8]) -> Vec<u8> {
+    let mut mac = HmacSha256::new_from_slice(key)
+        .expect("HMAC can take key of any size");
+    mac.update(data);
+    mac.finalize().into_bytes().to_vec()
 }
 
 /// Create the signing message string
@@ -167,18 +88,14 @@ fn create_signing_message(
 
 
 /// Derive signing key from user_id and password
-pub async fn derive_signing_key(user_id: &str, password: &str) -> RookLWAppResult<Vec<u8>> {
+pub fn derive_signing_key(user_id: &str, password: &str) -> RookLWAppResult<Vec<u8>> {
     let salt = generate_salt(user_id);
-    let key = derive_key_webcrypto(password, &salt, PBKDF2_ITERATIONS)
-        .await
-        .map_err(|e| crate::RookLWAppError::Other(
-            format!("Failed to derive key: {:?}", e)
-        ))?;
+    let key = derive_key_pbkdf2(password, &salt, PBKDF2_ITERATIONS);
     Ok(key)
 }
 
 /// Sign a URL by appending signature as query parameter
-pub async fn sign_url(user_id: &str, signing_key: &[u8], url: &str) -> RookLWAppResult<String> {
+pub fn sign_url(user_id: &str, signing_key: &[u8], url: &str) -> RookLWAppResult<String> {
     let body = b"";
     let signature = sign_request(
         user_id,
@@ -186,7 +103,7 @@ pub async fn sign_url(user_id: &str, signing_key: &[u8], url: &str) -> RookLWApp
         "GET",
         url,
         body,
-    ).await?;
+    )?;
     
     let sig_base64 = signature.to_base64url()
         .map_err(|e| crate::RookLWAppError::Other(format!("Failed to encode signature: {}", e)))?;
@@ -204,7 +121,7 @@ pub async fn sign_url(user_id: &str, signing_key: &[u8], url: &str) -> RookLWApp
 /// * `method` - HTTP method (GET, POST, etc.)
 /// * `url` - Full URL including path and query params (excluding signature)
 /// * `body` - Request body bytes
-pub async fn sign_request(
+pub fn sign_request(
     user_id: &str,
     signing_key: &[u8],
     method: &str,
@@ -226,11 +143,7 @@ pub async fn sign_request(
         body,
     )?;
 
-    let signature = hmac_sign_webcrypto(signing_key, &message)
-        .await
-        .map_err(|e| crate::RookLWAppError::Other(
-            format!("Failed to sign: {:?}", e)
-        ))?;
+    let signature = hmac_sign(signing_key, &message);
 
     Ok(RequestSignature {
         user_id: user_id.to_string(),
@@ -248,9 +161,8 @@ mod wasm_tests {
     wasm_bindgen_test_configure!(run_in_browser);
     
     #[wasm_bindgen_test]
-    async fn test_derive_signing_key() {
+    fn test_derive_signing_key() {
         let key = derive_signing_key("test_user", "test_password")
-            .await
             .expect("Failed to derive signing key");
         
         assert_eq!(key.len(), KEY_LENGTH);
@@ -258,12 +170,10 @@ mod wasm_tests {
     }
     
     #[wasm_bindgen_test]
-    async fn test_derive_signing_key_deterministic() {
+    fn test_derive_signing_key_deterministic() {
         let key1 = derive_signing_key("user123", "password")
-            .await
             .unwrap();
         let key2 = derive_signing_key("user123", "password")
-            .await
             .unwrap();
         
         // Same credentials should produce same key
@@ -271,12 +181,10 @@ mod wasm_tests {
     }
     
     #[wasm_bindgen_test]
-    async fn test_derive_signing_key_different_passwords() {
+    fn test_derive_signing_key_different_passwords() {
         let key1 = derive_signing_key("user", "password1")
-            .await
             .unwrap();
         let key2 = derive_signing_key("user", "password2")
-            .await
             .unwrap();
         
         // Different passwords should produce different keys
@@ -284,9 +192,8 @@ mod wasm_tests {
     }
     
     #[wasm_bindgen_test]
-    async fn test_sign_request() {
+    fn test_sign_request() {
         let signing_key = derive_signing_key("user", "password")
-            .await
             .unwrap();
         
         let signature = sign_request(
@@ -296,7 +203,6 @@ mod wasm_tests {
             "http://localhost/api/test",
             b"",
         )
-        .await
         .expect("Failed to sign request");
         
         assert_eq!(signature.user_id, "user");
@@ -306,9 +212,8 @@ mod wasm_tests {
     }
     
     #[wasm_bindgen_test]
-    async fn test_sign_request_with_body() {
+    fn test_sign_request_with_body() {
         let signing_key = derive_signing_key("user", "password")
-            .await
             .unwrap();
         
         let body = b"{\"test\": \"data\"}";
@@ -319,7 +224,6 @@ mod wasm_tests {
             "http://localhost/api/test",
             body,
         )
-        .await
         .unwrap();
         
         assert_eq!(signature.user_id, "user");
@@ -327,9 +231,8 @@ mod wasm_tests {
     }
     
     #[wasm_bindgen_test]
-    async fn test_sign_request_different_salts() {
+    fn test_sign_request_different_salts() {
         let signing_key = derive_signing_key("user", "password")
-            .await
             .unwrap();
         
         let sig1 = sign_request(
@@ -339,7 +242,6 @@ mod wasm_tests {
             "http://localhost/api/test",
             b"",
         )
-        .await
         .unwrap();
         
         let sig2 = sign_request(
@@ -349,7 +251,6 @@ mod wasm_tests {
             "http://localhost/api/test",
             b"",
         )
-        .await
         .unwrap();
         
         // Different random salts should produce different signatures
@@ -358,9 +259,8 @@ mod wasm_tests {
     }
     
     #[wasm_bindgen_test]
-    async fn test_sign_request_method_affects_signature() {
+    fn test_sign_request_method_affects_signature() {
         let signing_key = derive_signing_key("user", "password")
-            .await
             .unwrap();
         
         // Use same salt by signing at nearly the same time
@@ -372,7 +272,6 @@ mod wasm_tests {
             "http://localhost/api/test",
             b"",
         )
-        .await
         .unwrap();
         
         let sig_post = sign_request(
@@ -382,7 +281,6 @@ mod wasm_tests {
             "http://localhost/api/test",
             b"",
         )
-        .await
         .unwrap();
         
         // Different methods should produce different signatures
@@ -391,9 +289,8 @@ mod wasm_tests {
     }
     
     #[wasm_bindgen_test]
-    async fn test_signature_to_base64url() {
+    fn test_signature_to_base64url() {
         let signing_key = derive_signing_key("user", "password")
-            .await
             .unwrap();
         
         let signature = sign_request(
@@ -403,7 +300,6 @@ mod wasm_tests {
             "http://localhost/api/test",
             b"",
         )
-        .await
         .unwrap();
         
         let base64 = signature.to_base64url()
