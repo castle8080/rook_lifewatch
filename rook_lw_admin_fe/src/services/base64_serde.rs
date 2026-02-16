@@ -2,9 +2,11 @@
 //! 
 //! Use with serde's `with` attribute:
 //! ```rust
+//! use serde::{Serialize, Deserialize};
+//! 
 //! #[derive(Serialize, Deserialize)]
 //! struct MyStruct {
-//!     #[serde(with = "base64_serde")]
+//!     #[serde(with = "rook_lw_admin_fe::services::base64_serde")]
 //!     data: Vec<u8>,
 //! }
 //! ```

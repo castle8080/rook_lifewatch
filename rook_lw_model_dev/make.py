@@ -7,6 +7,10 @@ import os
 def clean():
     shutil.rmtree("var")
 
+def test():
+    # No tests defined.
+    pass
+
 def build():
     # TODO: Could invoke model build.
     pass

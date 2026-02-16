@@ -14,11 +14,16 @@ def clean():
     subprocess.run(["cargo", "clean"], check=True)
 
 def test():
+    build()
+    # Run native Rust tests
     subprocess.run(["cargo", "test", "--release"], check=True)
+    # Run WASM tests in headless Firefox
+    subprocess.run(["wasm-pack", "test", "--headless", "--firefox"], check=True)
 
 # Makes development setup by installing trunk and rust targets.
 def init_dev():
     subprocess.run(["cargo", "install", "trunk"], check=True)
+    subprocess.run(["cargo", "install", "wasm-pack"], check=True)
     subprocess.run(["rustup", "target", "add", "wasm32-unknown-unknown"], check=True)
 
 def run():

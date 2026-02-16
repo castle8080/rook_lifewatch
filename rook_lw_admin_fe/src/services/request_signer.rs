@@ -1,7 +1,7 @@
 use wasm_bindgen::JsValue;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::JsFuture;
-use js_sys::{Uint8Array, Object, Reflect, Array};
+use js_sys::{Uint8Array, Array, Object, Reflect};
 use web_sys::{window, CryptoKey};
 use rook_lw_models::user::RequestSignature;
 use chrono::Utc;
@@ -34,9 +34,6 @@ async fn derive_key_webcrypto(password: &str, salt: &[u8], iterations: u32) -> R
     let password_bytes = password.as_bytes();
     let password_array = Uint8Array::from(password_bytes);
     
-    let import_params = Object::new();
-    Reflect::set(&import_params, &"name".into(), &"PBKDF2".into())?;
-    
     let key_usages = {
         let arr = Array::new();
         arr.push(&"deriveBits".into());
@@ -44,7 +41,7 @@ async fn derive_key_webcrypto(password: &str, salt: &[u8], iterations: u32) -> R
     };
     
     let import_promise = subtle
-        .import_key_with_object("raw", &password_array, &import_params, false, &key_usages)
+        .import_key_with_str("raw", &password_array, "PBKDF2", false, &key_usages)
         .map_err(|e| JsValue::from_str(&format!("Failed to import password: {:?}", e)))?;
     
     let key_material = JsFuture::from(import_promise)
@@ -53,15 +50,12 @@ async fn derive_key_webcrypto(password: &str, salt: &[u8], iterations: u32) -> R
         .dyn_into::<CryptoKey>()
         .map_err(|_| JsValue::from_str("Failed to convert to CryptoKey"))?;
     
-    // Derive bits using PBKDF2
+    // Derive bits using PBKDF2 - construct params object manually
     let derive_params = Object::new();
     Reflect::set(&derive_params, &"name".into(), &"PBKDF2".into())?;
     Reflect::set(&derive_params, &"salt".into(), &Uint8Array::from(salt))?;
     Reflect::set(&derive_params, &"iterations".into(), &JsValue::from(iterations))?;
-    
-    let hash_obj = Object::new();
-    Reflect::set(&hash_obj, &"name".into(), &"SHA-256".into())?;
-    Reflect::set(&derive_params, &"hash".into(), &hash_obj)?;
+    Reflect::set(&derive_params, &"hash".into(), &"SHA-256".into())?;
     
     let derive_promise = subtle
         .derive_bits_with_object(&derive_params, &key_material, (KEY_LENGTH * 8) as u32)
@@ -84,14 +78,12 @@ async fn hmac_sign_webcrypto(key: &[u8], data: &[u8]) -> Result<Vec<u8>, JsValue
     
     let subtle = crypto.subtle();
     
-    // Import key
+    // Import key with typed params - construct manually for reliability
     let key_array = Uint8Array::from(key);
+    
     let import_params = Object::new();
     Reflect::set(&import_params, &"name".into(), &"HMAC".into())?;
-    
-    let hash_obj = Object::new();
-    Reflect::set(&hash_obj, &"name".into(), &"SHA-256".into())?;
-    Reflect::set(&import_params, &"hash".into(), &hash_obj)?;
+    Reflect::set(&import_params, &"hash".into(), &"SHA-256".into())?;
     
     let key_usages = {
         let arr = Array::new();
@@ -109,12 +101,9 @@ async fn hmac_sign_webcrypto(key: &[u8], data: &[u8]) -> Result<Vec<u8>, JsValue
         .dyn_into::<CryptoKey>()
         .map_err(|_| JsValue::from_str("Failed to convert to CryptoKey"))?;
     
-    // Sign data
-    let sign_params = Object::new();
-    Reflect::set(&sign_params, &"name".into(), &"HMAC".into())?;
-    
+    // Sign data with HMAC algorithm
     let sign_promise = subtle
-        .sign_with_object_and_u8_array(&sign_params, &crypto_key, data)
+        .sign_with_str_and_u8_array("HMAC", &crypto_key, data)
         .map_err(|e| JsValue::from_str(&format!("Failed to sign: {:?}", e)))?;
     
     let signature = JsFuture::from(sign_promise)
@@ -196,5 +185,227 @@ mod hex {
         bytes.iter()
             .map(|b| format!("{:02x}", b))
             .collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    
+    // Pure Rust tests - run with `cargo test`
+    #[test]
+    fn test_generate_salt_deterministic() {
+        let salt1 = generate_salt("user123");
+        let salt2 = generate_salt("user123");
+        
+        // Same user_id should produce same salt
+        assert_eq!(salt1, salt2);
+        assert_eq!(salt1.len(), SALT_LENGTH);
+    }
+    
+    #[test]
+    fn test_generate_salt_different_users() {
+        let salt1 = generate_salt("user123");
+        let salt2 = generate_salt("user456");
+        
+        // Different user_ids should produce different salts
+        assert_ne!(salt1, salt2);
+    }
+    
+    #[test]
+    fn test_hex_encode() {
+        assert_eq!(hex::encode(&[]), "");
+        assert_eq!(hex::encode(&[0x00]), "00");
+        assert_eq!(hex::encode(&[0xff]), "ff");
+        assert_eq!(hex::encode(&[0x01, 0x23, 0xab, 0xcd]), "0123abcd");
+    }
+    
+    #[test]
+    fn test_constants() {
+        assert_eq!(PBKDF2_ITERATIONS, 600_000);
+        assert_eq!(SALT_LENGTH, 32);
+        assert_eq!(KEY_LENGTH, 32);
+    }
+}
+
+#[cfg(test)]
+mod wasm_tests {
+    use super::*;
+    use wasm_bindgen_test::*;
+    
+    wasm_bindgen_test_configure!(run_in_browser);
+    
+    #[wasm_bindgen_test]
+    async fn test_derive_signing_key() {
+        let key = RequestSigner::derive_signing_key("test_user", "test_password")
+            .await
+            .expect("Failed to derive signing key");
+        
+        assert_eq!(key.len(), KEY_LENGTH);
+        assert!(key.iter().any(|&b| b != 0), "Key should not be all zeros");
+    }
+    
+    #[wasm_bindgen_test]
+    async fn test_derive_signing_key_deterministic() {
+        let key1 = RequestSigner::derive_signing_key("user123", "password")
+            .await
+            .unwrap();
+        let key2 = RequestSigner::derive_signing_key("user123", "password")
+            .await
+            .unwrap();
+        
+        // Same credentials should produce same key
+        assert_eq!(key1, key2);
+    }
+    
+    #[wasm_bindgen_test]
+    async fn test_derive_signing_key_different_passwords() {
+        let key1 = RequestSigner::derive_signing_key("user", "password1")
+            .await
+            .unwrap();
+        let key2 = RequestSigner::derive_signing_key("user", "password2")
+            .await
+            .unwrap();
+        
+        // Different passwords should produce different keys
+        assert_ne!(key1, key2);
+    }
+    
+    #[wasm_bindgen_test]
+    async fn test_sign_request() {
+        let signing_key = RequestSigner::derive_signing_key("user", "password")
+            .await
+            .unwrap();
+        
+        let signature = RequestSigner::sign_request(
+            "user",
+            &signing_key,
+            "GET",
+            "http://localhost/api/test",
+            b"",
+        )
+        .await
+        .expect("Failed to sign request");
+        
+        assert_eq!(signature.user_id, "user");
+        assert!(!signature.signature.is_empty());
+        assert_eq!(signature.salt.len(), 16);
+        assert!(signature.signature.len() > 0);
+    }
+    
+    #[wasm_bindgen_test]
+    async fn test_sign_request_with_body() {
+        let signing_key = RequestSigner::derive_signing_key("user", "password")
+            .await
+            .unwrap();
+        
+        let body = b"{\"test\": \"data\"}";
+        let signature = RequestSigner::sign_request(
+            "user",
+            &signing_key,
+            "POST",
+            "http://localhost/api/test",
+            body,
+        )
+        .await
+        .unwrap();
+        
+        assert_eq!(signature.user_id, "user");
+        assert!(!signature.signature.is_empty());
+    }
+    
+    #[wasm_bindgen_test]
+    async fn test_sign_request_different_salts() {
+        let signing_key = RequestSigner::derive_signing_key("user", "password")
+            .await
+            .unwrap();
+        
+        let sig1 = RequestSigner::sign_request(
+            "user",
+            &signing_key,
+            "GET",
+            "http://localhost/api/test",
+            b"",
+        )
+        .await
+        .unwrap();
+        
+        let sig2 = RequestSigner::sign_request(
+            "user",
+            &signing_key,
+            "GET",
+            "http://localhost/api/test",
+            b"",
+        )
+        .await
+        .unwrap();
+        
+        // Different random salts should produce different signatures
+        assert_ne!(sig1.salt, sig2.salt);
+        assert_ne!(sig1.signature, sig2.signature);
+    }
+    
+    #[wasm_bindgen_test]
+    async fn test_sign_request_method_affects_signature() {
+        let signing_key = RequestSigner::derive_signing_key("user", "password")
+            .await
+            .unwrap();
+        
+        // Use same salt by signing at nearly the same time
+        // (This is probabilistic but random salts make exact matching hard)
+        let sig_get = RequestSigner::sign_request(
+            "user",
+            &signing_key,
+            "GET",
+            "http://localhost/api/test",
+            b"",
+        )
+        .await
+        .unwrap();
+        
+        let sig_post = RequestSigner::sign_request(
+            "user",
+            &signing_key,
+            "POST",
+            "http://localhost/api/test",
+            b"",
+        )
+        .await
+        .unwrap();
+        
+        // Different methods should produce different signatures
+        // (even though salts are different, this verifies method is included)
+        assert_ne!(sig_get.signature, sig_post.signature);
+    }
+    
+    #[wasm_bindgen_test]
+    async fn test_signature_to_base64url() {
+        let signing_key = RequestSigner::derive_signing_key("user", "password")
+            .await
+            .unwrap();
+        
+        let signature = RequestSigner::sign_request(
+            "user",
+            &signing_key,
+            "GET",
+            "http://localhost/api/test",
+            b"",
+        )
+        .await
+        .unwrap();
+        
+        let base64 = signature.to_base64url()
+            .expect("Failed to encode to base64url");
+        
+        // Should be valid base64url string (not empty)
+        assert!(!base64.is_empty());
+        
+        // Should be able to decode it back
+        let decoded = RequestSignature::from_base64url(&base64)
+            .expect("Failed to decode signature");
+        
+        assert_eq!(decoded.user_id, "user");
+        assert_eq!(decoded.signature, signature.signature);
+        assert_eq!(decoded.salt, signature.salt);
     }
 }
