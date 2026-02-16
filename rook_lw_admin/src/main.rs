@@ -102,6 +102,7 @@ async fn run() -> RookLWAdminResult<()> {
                 .configure(controllers::image::register)
                 .configure(controllers::process::register)
                 .configure(controllers::server::register)
+                .configure(controllers::user::register)
                 .service(
                     fs::Files::new("/", &www_dir)
                         .index_file("index.html")
